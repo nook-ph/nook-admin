@@ -70,13 +70,28 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip"
 
+import type { Cafe } from "@/lib/queries/cafes"
+import type { Tag } from "@/lib/queries/tags"
+import type { Category, MenuItem } from "@/lib/queries/menu"
+import {
+  createCafeAction,
+  updateCafeAction,
+  upsertMenuItemAction,
+  deleteMenuItemAction,
+} from "@/app/admin/cafes/editor-actions"
+
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
 
 export interface CafeEditorFormProps {
-  mode: "new" | "edit"
-  id?: string
+  mode: "create" | "edit"
+  cafe?: Cafe & {
+    cafe_tags: { tag_id: string; is_featured: boolean }[]
+    menu_items: MenuItem[]
+  }
+  tags: Tag[]
+  categories: Category[]
   disabled?: boolean
 }
 
@@ -90,100 +105,49 @@ const DAYS = [
   "Sunday",
 ] as const
 
-const TAG_GROUPS = [
-  {
-    label: "Best For",
-    tags: [
-      "Date Spot",
-      "Solo Work",
-      "Group Hangout",
-      "Book Cafe",
-      "Co-working Space",
-      "Late Night",
-      "Quick Coffee",
-      "Family Friendly",
-      "Nature Cafe",
-      "Special Occasion",
-    ],
-    vibe: false,
-  },
-  {
-    label: "Amenities",
-    tags: [
-      "Free WiFi",
-      "High-Speed WiFi",
-      "Power Outlets",
-      "Air Conditioned",
-      "Outdoor Seating",
-      "Pet Friendly",
-      "Parking Available",
-      "Wheelchair Accessible",
-    ],
-    vibe: false,
-  },
-  {
-    label: "Payment",
-    tags: ["Cash", "GCash", "Maya", "Credit & Debit Card"],
-    vibe: false,
-  },
-  {
-    label: "Vibe",
-    tags: [
-      "Aesthetic",
-      "Cozy & Warm",
-      "Minimalist",
-      "Industrial",
-      "Garden",
-      "Dark Academia",
-    ],
-    vibe: true,
-  },
-] as const
-
-const ALL_TAGS = TAG_GROUPS.flatMap((g) => g.tags)
-
 // ---------------------------------------------------------------------------
-// Menu types & seed data
+// Menu types
 // ---------------------------------------------------------------------------
 
-interface MenuCategory {
-  id: number
+interface LocalMenuCategory {
+  id: string
   name: string
   isGlobal: boolean
 }
 
-interface FullMenuItem {
-  id: number
+interface LocalMenuItem {
+  id: string
   name: string
   category: string
+  categoryId: string
   price: number
   isHighlight: boolean
   hasImage: boolean
 }
 
-const SEED_CATEGORIES: MenuCategory[] = [
-  { id: 1, name: "Coffee", isGlobal: true },
-  { id: 2, name: "Non-Coffee", isGlobal: true },
-  { id: 3, name: "Food", isGlobal: true },
-  { id: 4, name: "Pastries", isGlobal: true },
-  { id: 5, name: "Seasonal", isGlobal: false },
-]
-
-const SEED_ITEMS: FullMenuItem[] = [
-  { id: 1, name: "Iced Oat Latte", category: "Coffee", price: 180, isHighlight: true, hasImage: true },
-  { id: 2, name: "Pour Over Ethiopia", category: "Coffee", price: 220, isHighlight: true, hasImage: true },
-  { id: 3, name: "Americano", category: "Coffee", price: 130, isHighlight: false, hasImage: false },
-  { id: 4, name: "Matcha Latte", category: "Non-Coffee", price: 160, isHighlight: true, hasImage: false },
-  { id: 5, name: "Croissant", category: "Pastries", price: 95, isHighlight: false, hasImage: false },
-  { id: 6, name: "Club Sandwich", category: "Food", price: 250, isHighlight: false, hasImage: false },
-]
-
 // ---------------------------------------------------------------------------
-// Helper
+// Helpers
 // ---------------------------------------------------------------------------
 
 function formatPrice(price: number) {
   return `₱${price.toFixed(2)}`
+}
+
+function formatCategoryLabel(cat: string) {
+  return cat
+    .split("_")
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+    .join(" ")
+}
+
+function groupTagsByCategory(tags: Tag[]) {
+  const map = new Map<string, Tag[]>()
+  for (const tag of tags) {
+    const list = map.get(tag.category) ?? []
+    list.push(tag)
+    map.set(tag.category, list)
+  }
+  return map
 }
 
 // ---------------------------------------------------------------------------
@@ -231,11 +195,11 @@ function ImageUploadCell({ onClick, disabled }: { onClick?: () => void; disabled
 }
 
 interface MenuItemRowProps {
-  item: FullMenuItem
+  item: LocalMenuItem
   showCategory?: boolean
   highlightCount: number
-  onToggleHighlight: (id: number, val: boolean) => void
-  onDelete: (id: number) => void
+  onToggleHighlight: (id: string, val: boolean) => void
+  onDelete: (id: string) => void
   disabled?: boolean
 }
 
@@ -405,7 +369,9 @@ interface AddItemDialogProps {
   open: boolean
   onOpenChange: (v: boolean) => void
   highlightCount: number
-  categories: MenuCategory[]
+  categories: LocalMenuCategory[]
+  cafeId?: string
+  onItemAdded: (item: LocalMenuItem) => void
 }
 
 function AddItemDialog({
@@ -413,17 +379,60 @@ function AddItemDialog({
   onOpenChange,
   highlightCount,
   categories,
+  cafeId,
+  onItemAdded,
 }: AddItemDialogProps) {
   const [itemName, setItemName] = React.useState("")
-  const [category, setCategory] = React.useState("")
+  const [categoryId, setCategoryId] = React.useState("")
   const [price, setPrice] = React.useState("")
   const [isHighlight, setIsHighlight] = React.useState(false)
+  const [saving, setSaving] = React.useState(false)
   const atCap = highlightCount >= 5
 
-  function handleAdd() {
-    console.log("Item added")
+  async function handleAdd() {
+    if (!itemName || !categoryId || !price) return
+    const priceNum = parseFloat(price)
+    if (isNaN(priceNum)) return
+
+    if (cafeId) {
+      setSaving(true)
+      try {
+        const result = await upsertMenuItemAction({
+          cafe_id: cafeId,
+          name: itemName,
+          price: priceNum,
+          category_id: categoryId,
+          is_highlight: isHighlight,
+          image_url: null,
+        })
+        const cat = categories.find((c) => c.id === categoryId)
+        onItemAdded({
+          id: result.id,
+          name: itemName,
+          category: cat?.name ?? "",
+          categoryId,
+          price: priceNum,
+          isHighlight,
+          hasImage: false,
+        })
+      } finally {
+        setSaving(false)
+      }
+    } else {
+      const cat = categories.find((c) => c.id === categoryId)
+      onItemAdded({
+        id: crypto.randomUUID(),
+        name: itemName,
+        category: cat?.name ?? "",
+        categoryId,
+        price: priceNum,
+        isHighlight,
+        hasImage: false,
+      })
+    }
+
     setItemName("")
-    setCategory("")
+    setCategoryId("")
     setPrice("")
     setIsHighlight(false)
     onOpenChange(false)
@@ -431,7 +440,7 @@ function AddItemDialog({
 
   function handleCancel() {
     setItemName("")
-    setCategory("")
+    setCategoryId("")
     setPrice("")
     setIsHighlight(false)
     onOpenChange(false)
@@ -452,13 +461,13 @@ function AddItemDialog({
             />
           </FieldGroup>
           <FieldGroup label="Category">
-            <Select value={category} onValueChange={setCategory}>
+            <Select value={categoryId} onValueChange={setCategoryId}>
               <SelectTrigger className="w-full">
                 <SelectValue placeholder="Select a category" />
               </SelectTrigger>
               <SelectContent>
                 {categories.map((cat) => (
-                  <SelectItem key={cat.id} value={cat.name}>
+                  <SelectItem key={cat.id} value={cat.id}>
                     {cat.name}
                   </SelectItem>
                 ))}
@@ -508,7 +517,9 @@ function AddItemDialog({
           <Button variant="outline" onClick={handleCancel}>
             Cancel
           </Button>
-          <Button onClick={handleAdd}>Add Item</Button>
+          <Button onClick={handleAdd} disabled={saving}>
+            Add Item
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
@@ -524,12 +535,12 @@ function MenuCategoriesCard({
   onDeleteCategory,
   disabled = false,
 }: {
-  categories: MenuCategory[]
-  onDeleteCategory: (id: number) => void
+  categories: LocalMenuCategory[]
+  onDeleteCategory: (id: string) => void
   disabled?: boolean
 }) {
   const [addCategoryOpen, setAddCategoryOpen] = React.useState(false)
-  const [deleteCategoryId, setDeleteCategoryId] = React.useState<number | null>(null)
+  const [deleteCategoryId, setDeleteCategoryId] = React.useState<string | null>(null)
 
   return (
     <>
@@ -625,32 +636,35 @@ function MenuCategoriesCard({
 function MenuItemsCard({
   items,
   categories,
+  cafeId,
   onToggleHighlight,
   onDeleteItem,
+  onItemAdded,
   disabled = false,
 }: {
-  items: FullMenuItem[]
-  categories: MenuCategory[]
-  onToggleHighlight: (id: number, val: boolean) => void
-  onDeleteItem: (id: number) => void
+  items: LocalMenuItem[]
+  categories: LocalMenuCategory[]
+  cafeId?: string
+  onToggleHighlight: (id: string, val: boolean) => void
+  onDeleteItem: (id: string) => void
+  onItemAdded: (item: LocalMenuItem) => void
   disabled?: boolean
 }) {
   const [addItemOpen, setAddItemOpen] = React.useState(false)
-  const [deleteItemId, setDeleteItemId] = React.useState<number | null>(null)
+  const [deleteItemId, setDeleteItemId] = React.useState<string | null>(null)
 
   const highlights = items.filter((i) => i.isHighlight)
   const highlightCount = highlights.length
   const allHighlightsHaveNoImage = highlights.length > 0 && highlights.every((i) => !i.hasImage)
 
-  // Group items by category
   const byCategory = categories
     .map((cat) => ({
       category: cat,
-      items: items.filter((i) => i.category === cat.name),
+      items: items.filter((i) => i.categoryId === cat.id),
     }))
     .filter((g) => g.items.length > 0)
 
-  function handleDelete(id: number) {
+  function handleDelete(id: string) {
     setDeleteItemId(id)
   }
 
@@ -767,6 +781,8 @@ function MenuItemsCard({
         onOpenChange={setAddItemOpen}
         highlightCount={highlightCount}
         categories={categories}
+        cafeId={cafeId}
+        onItemAdded={onItemAdded}
       />
 
       <AlertDialog
@@ -796,34 +812,85 @@ function MenuItemsCard({
 // Main component
 // ---------------------------------------------------------------------------
 
-export function CafeEditorForm({ mode, id, disabled = false }: CafeEditorFormProps) {
+export function CafeEditorForm({
+  mode,
+  cafe,
+  tags,
+  categories,
+  disabled = false,
+}: CafeEditorFormProps) {
   // --- Basic Info ---
-  const [description, setDescription] = React.useState("")
+  const [name, setName] = React.useState(cafe?.name ?? "")
+  const [neighborhood, setNeighborhood] = React.useState(cafe?.neighborhood ?? "")
+  const [city, setCity] = React.useState(cafe?.city ?? "Cebu City")
+  const [description, setDescription] = React.useState(cafe?.description ?? "")
+
+  // --- Location ---
+  const [address, setAddress] = React.useState(cafe?.address ?? "")
+
+  // --- Social Links ---
+  const [instagram, setInstagram] = React.useState(cafe?.social_links?.instagram ?? "")
+  const [facebook, setFacebook] = React.useState(cafe?.social_links?.facebook ?? "")
+  const [tiktok, setTiktok] = React.useState(cafe?.social_links?.tiktok ?? "")
+  const [website, setWebsite] = React.useState(cafe?.social_links?.website ?? "")
 
   // --- Operating Hours ---
-  const [closedDays, setClosedDays] = React.useState<Record<string, boolean>>(
-    () => Object.fromEntries(DAYS.map((d) => [d, false]))
-  )
+  type DayHours = { open: string; close: string; closed: boolean }
+  const [hours, setHours] = React.useState<Record<string, DayHours>>(() => {
+    const defaults = Object.fromEntries(
+      DAYS.map((d) => [d, { open: "", close: "", closed: false }])
+    )
+    if (cafe?.operating_hours) {
+      const saved = cafe.operating_hours as Record<string, DayHours>
+      DAYS.forEach((d) => {
+        if (saved[d]) defaults[d] = saved[d]
+      })
+    }
+    return defaults
+  })
 
   // --- Tags ---
   const [selectedTags, setSelectedTags] = React.useState<Set<string>>(
-    new Set()
+    () => new Set(cafe?.cafe_tags?.map((t) => t.tag_id) ?? [])
   )
-  const [featuredTag, setFeaturedTag] = React.useState("")
+  const [featuredTag, setFeaturedTag] = React.useState<string>(
+    () => cafe?.cafe_tags?.find((t) => t.is_featured)?.tag_id ?? ""
+  )
 
-  function toggleTag(tag: string) {
+  const tagGroups = React.useMemo(() => groupTagsByCategory(tags), [tags])
+
+  function toggleTag(tagId: string) {
     setSelectedTags((prev) => {
       const next = new Set(prev)
-      next.has(tag) ? next.delete(tag) : next.add(tag)
+      next.has(tagId) ? next.delete(tagId) : next.add(tagId)
       return next
     })
   }
 
   // --- Menu ---
-  const [menuCategories, setMenuCategories] = React.useState<MenuCategory[]>(SEED_CATEGORIES)
-  const [menuItems, setMenuItems] = React.useState<FullMenuItem[]>(SEED_ITEMS)
+  const [menuCategories, setMenuCategories] = React.useState<LocalMenuCategory[]>(
+    () =>
+      categories.map((c) => ({
+        id: c.id,
+        name: c.name,
+        isGlobal: c.is_global,
+      }))
+  )
 
-  function handleToggleHighlight(itemId: number, val: boolean) {
+  const [menuItems, setMenuItems] = React.useState<LocalMenuItem[]>(
+    () =>
+      (cafe?.menu_items ?? []).map((item) => ({
+        id: item.id,
+        name: item.name,
+        category: item.menu_categories?.name ?? "",
+        categoryId: item.category_id,
+        price: item.price,
+        isHighlight: item.is_highlight,
+        hasImage: !!item.image_url,
+      }))
+  )
+
+  function handleToggleHighlight(itemId: string, val: boolean) {
     setMenuItems((prev) =>
       prev.map((item) =>
         item.id === itemId ? { ...item, isHighlight: val } : item
@@ -831,21 +898,60 @@ export function CafeEditorForm({ mode, id, disabled = false }: CafeEditorFormPro
     )
   }
 
-  function handleDeleteItem(itemId: number) {
+  async function handleDeleteItem(itemId: string) {
+    if (cafe?.id) {
+      await deleteMenuItemAction(itemId, cafe.id)
+    }
     setMenuItems((prev) => prev.filter((item) => item.id !== itemId))
   }
 
-  function handleDeleteCategory(catId: number) {
+  function handleDeleteCategory(catId: string) {
     setMenuCategories((prev) => prev.filter((cat) => cat.id !== catId))
+  }
+
+  function handleItemAdded(item: LocalMenuItem) {
+    setMenuItems((prev) => [...prev, item])
   }
 
   // --- Sidebar ---
   const [listingStatus, setListingStatus] = React.useState(
-    mode === "new" ? "draft" : "active"
+    cafe?.status ?? (mode === "create" ? "draft" : "active")
   )
-  const [flagNew, setFlagNew] = React.useState(false)
-  const [flagFeatured, setFlagFeatured] = React.useState(false)
-  const [flagActive, setFlagActive] = React.useState(true)
+  const [flagNew, setFlagNew] = React.useState(cafe?.is_new ?? false)
+  const [flagFeatured, setFlagFeatured] = React.useState(cafe?.is_featured ?? false)
+  const [flagActive, setFlagActive] = React.useState(
+    cafe ? cafe.status === "active" : true
+  )
+
+  // --- Save ---
+  const [saving, setSaving] = React.useState(false)
+
+  async function handleSave() {
+    setSaving(true)
+    try {
+      const payload = {
+        name,
+        neighborhood,
+        city,
+        description,
+        address,
+        operating_hours: hours,
+        social_links: { instagram, facebook, tiktok, website },
+        status: listingStatus,
+        is_new: flagNew,
+        is_featured: flagFeatured,
+        tagIds: Array.from(selectedTags),
+        featuredTagId: featuredTag || null,
+      }
+      if (mode === "create") {
+        await createCafeAction(payload)
+      } else {
+        await updateCafeAction(cafe!.id, payload)
+      }
+    } finally {
+      setSaving(false)
+    }
+  }
 
   // ---------------------------------------------------------------------------
   // Render
@@ -864,10 +970,10 @@ export function CafeEditorForm({ mode, id, disabled = false }: CafeEditorFormPro
             </Button>
             <div className="flex flex-col">
               <h1 className="text-xl font-semibold">
-                {mode === "new" ? "Add Cafe" : "Edit Cafe"}
+                {mode === "create" ? "Add Cafe" : "Edit Cafe"}
               </h1>
               <p className="text-muted-foreground text-sm">
-                {mode === "new"
+                {mode === "create"
                   ? "Fill in the details below"
                   : "Update the cafe details"}
               </p>
@@ -889,13 +995,27 @@ export function CafeEditorForm({ mode, id, disabled = false }: CafeEditorFormPro
               </CardHeader>
               <CardContent className="flex flex-col gap-4">
                 <FieldGroup label="Cafe name">
-                  <Input placeholder="e.g. Slowpoke Coffee" disabled={disabled} />
+                  <Input
+                    placeholder="e.g. Slowpoke Coffee"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    disabled={disabled}
+                  />
                 </FieldGroup>
                 <FieldGroup label="Neighborhood">
-                  <Input placeholder="e.g. IT Park" disabled={disabled} />
+                  <Input
+                    placeholder="e.g. IT Park"
+                    value={neighborhood}
+                    onChange={(e) => setNeighborhood(e.target.value)}
+                    disabled={disabled}
+                  />
                 </FieldGroup>
                 <FieldGroup label="City">
-                  <Input defaultValue="Cebu City" disabled={disabled} />
+                  <Input
+                    value={city}
+                    onChange={(e) => setCity(e.target.value)}
+                    disabled={disabled}
+                  />
                 </FieldGroup>
                 <FieldGroup label="Description">
                   <Textarea
@@ -926,7 +1046,12 @@ export function CafeEditorForm({ mode, id, disabled = false }: CafeEditorFormPro
               </CardHeader>
               <CardContent className="flex flex-col gap-4">
                 <FieldGroup label="Address">
-                  <Input placeholder="e.g. Ground Floor, IT Park" disabled={disabled} />
+                  <Input
+                    placeholder="e.g. Ground Floor, IT Park"
+                    value={address}
+                    onChange={(e) => setAddress(e.target.value)}
+                    disabled={disabled}
+                  />
                 </FieldGroup>
 
                 <div className="mt-3 h-64 w-full rounded-lg border border-dashed border-border bg-muted flex flex-col items-center justify-center gap-2 text-muted-foreground">
@@ -938,10 +1063,10 @@ export function CafeEditorForm({ mode, id, disabled = false }: CafeEditorFormPro
                 <div className="flex flex-col gap-1.5">
                   <div className="grid grid-cols-2 gap-3">
                     <FieldGroup label="Latitude">
-                      <Input value="10.3157" disabled />
+                      <Input value={cafe?.lat ?? "10.3157"} disabled />
                     </FieldGroup>
                     <FieldGroup label="Longitude">
-                      <Input value="123.8854" disabled />
+                      <Input value={cafe?.lng ?? "123.8854"} disabled />
                     </FieldGroup>
                   </div>
                   <p className="text-xs text-muted-foreground">
@@ -958,7 +1083,8 @@ export function CafeEditorForm({ mode, id, disabled = false }: CafeEditorFormPro
               </CardHeader>
               <CardContent>
                 {DAYS.map((day) => {
-                  const isClosed = closedDays[day]
+                  const dayHours = hours[day]
+                  const isClosed = dayHours?.closed ?? false
                   return (
                     <div
                       key={day}
@@ -970,11 +1096,25 @@ export function CafeEditorForm({ mode, id, disabled = false }: CafeEditorFormPro
                       <Input
                         className="w-32"
                         placeholder="08:00"
+                        value={dayHours?.open ?? ""}
+                        onChange={(e) =>
+                          setHours((prev) => ({
+                            ...prev,
+                            [day]: { ...prev[day], open: e.target.value },
+                          }))
+                        }
                         disabled={isClosed || disabled}
                       />
                       <Input
                         className="w-32"
                         placeholder="22:00"
+                        value={dayHours?.close ?? ""}
+                        onChange={(e) =>
+                          setHours((prev) => ({
+                            ...prev,
+                            [day]: { ...prev[day], close: e.target.value },
+                          }))
+                        }
                         disabled={isClosed || disabled}
                       />
                       <div className="flex items-center gap-2 ml-auto">
@@ -988,9 +1128,9 @@ export function CafeEditorForm({ mode, id, disabled = false }: CafeEditorFormPro
                           id={`closed-${day}`}
                           checked={isClosed}
                           onCheckedChange={(val) =>
-                            setClosedDays((prev) => ({
+                            setHours((prev) => ({
                               ...prev,
-                              [day]: val,
+                              [day]: { ...prev[day], closed: val },
                             }))
                           }
                           disabled={disabled}
@@ -1075,27 +1215,27 @@ export function CafeEditorForm({ mode, id, disabled = false }: CafeEditorFormPro
                 </CardDescription>
               </CardHeader>
               <CardContent className="flex flex-col gap-1">
-                {TAG_GROUPS.map((group) => (
-                  <div key={group.label}>
+                {Array.from(tagGroups.entries()).map(([category, categoryTags]) => (
+                  <div key={category}>
                     <div className="flex items-center gap-2">
                       <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2 mt-4 first:mt-0">
-                        {group.label}
+                        {formatCategoryLabel(category)}
                       </p>
-                      {group.vibe && (
+                      {category === "vibe" && (
                         <p className="text-xs text-muted-foreground mb-2 mt-4">
                           (hidden in app)
                         </p>
                       )}
                     </div>
                     <div className="flex flex-wrap gap-2">
-                      {group.tags.map((tag) => {
-                        const selected = selectedTags.has(tag)
+                      {categoryTags.map((tag) => {
+                        const selected = selectedTags.has(tag.id)
                         return (
                           <Button
-                            key={tag}
+                            key={tag.id}
                             variant="outline"
                             size="sm"
-                            onClick={() => toggleTag(tag)}
+                            onClick={() => toggleTag(tag.id)}
                             disabled={disabled}
                             className={
                               selected
@@ -1103,7 +1243,7 @@ export function CafeEditorForm({ mode, id, disabled = false }: CafeEditorFormPro
                                 : ""
                             }
                           >
-                            {tag}
+                            {tag.name}
                           </Button>
                         )
                       })}
@@ -1118,9 +1258,9 @@ export function CafeEditorForm({ mode, id, disabled = false }: CafeEditorFormPro
                       <SelectValue placeholder="Select one tag..." />
                     </SelectTrigger>
                     <SelectContent>
-                      {ALL_TAGS.map((tag) => (
-                        <SelectItem key={tag} value={tag}>
-                          {tag}
+                      {tags.map((tag) => (
+                        <SelectItem key={tag.id} value={tag.id}>
+                          {tag.name}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -1138,8 +1278,10 @@ export function CafeEditorForm({ mode, id, disabled = false }: CafeEditorFormPro
             <MenuItemsCard
               items={menuItems}
               categories={menuCategories}
+              cafeId={cafe?.id}
               onToggleHighlight={handleToggleHighlight}
               onDeleteItem={handleDeleteItem}
+              onItemAdded={handleItemAdded}
               disabled={disabled}
             />
 
@@ -1155,6 +1297,8 @@ export function CafeEditorForm({ mode, id, disabled = false }: CafeEditorFormPro
                     <Input
                       className="pl-8"
                       placeholder="https://instagram.com/..."
+                      value={instagram}
+                      onChange={(e) => setInstagram(e.target.value)}
                       disabled={disabled}
                     />
                   </div>
@@ -1165,6 +1309,8 @@ export function CafeEditorForm({ mode, id, disabled = false }: CafeEditorFormPro
                     <Input
                       className="pl-8"
                       placeholder="https://facebook.com/..."
+                      value={facebook}
+                      onChange={(e) => setFacebook(e.target.value)}
                       disabled={disabled}
                     />
                   </div>
@@ -1175,6 +1321,8 @@ export function CafeEditorForm({ mode, id, disabled = false }: CafeEditorFormPro
                     <Input
                       className="pl-8"
                       placeholder="https://tiktok.com/..."
+                      value={tiktok}
+                      onChange={(e) => setTiktok(e.target.value)}
                       disabled={disabled}
                     />
                   </div>
@@ -1182,14 +1330,20 @@ export function CafeEditorForm({ mode, id, disabled = false }: CafeEditorFormPro
                 <FieldGroup label="Website">
                   <div className="relative">
                     <Globe className="absolute left-2.5 top-1/2 -translate-y-1/2 size-4 text-muted-foreground pointer-events-none" />
-                    <Input className="pl-8" placeholder="https://..." disabled={disabled} />
+                    <Input
+                      className="pl-8"
+                      placeholder="https://..."
+                      value={website}
+                      onChange={(e) => setWebsite(e.target.value)}
+                      disabled={disabled}
+                    />
                   </div>
                 </FieldGroup>
               </CardContent>
             </Card>
 
             {/* CARD 8 — Metadata (edit only) */}
-            {mode === "edit" && (
+            {mode === "edit" && cafe && (
               <Card>
                 <CardHeader>
                   <CardTitle>Metadata</CardTitle>
@@ -1200,20 +1354,21 @@ export function CafeEditorForm({ mode, id, disabled = false }: CafeEditorFormPro
                       <dt className="text-sm text-muted-foreground w-32 shrink-0">
                         Created
                       </dt>
-                      <dd className="text-sm">Jan 12, 2025</dd>
-                    </div>
-                    <div className="flex items-center gap-6">
-                      <dt className="text-sm text-muted-foreground w-32 shrink-0">
-                        Last updated
-                      </dt>
-                      <dd className="text-sm">Mar 14, 2025</dd>
+                      <dd className="text-sm">
+                        {new Date(cafe.created_at).toLocaleDateString("en-US", {
+                          year: "numeric",
+                          month: "short",
+                          day: "numeric",
+                        })}
+                      </dd>
                     </div>
                     <div className="flex items-center gap-6">
                       <dt className="text-sm text-muted-foreground w-32 shrink-0">
                         Owner
                       </dt>
                       <dd className="text-sm">
-                        owner@slowpokecoffee.com
+                        {(cafe as Cafe & { cafe_owner_cafe?: { owner_id: string }[] })
+                          .cafe_owner_cafe?.[0]?.owner_id ?? "Unassigned"}
                       </dd>
                     </div>
                   </dl>
@@ -1304,23 +1459,23 @@ export function CafeEditorForm({ mode, id, disabled = false }: CafeEditorFormPro
                 <CardContent className="pt-6 space-y-2">
                   {disabled ? (
                     <Button className="w-full" asChild>
-                      <Link href={`/admin/cafes/${id}/edit`}>
+                      <Link href={`/admin/cafes/${cafe?.id}/edit`}>
                         <PencilSimple />
                         Edit to make changes
                       </Link>
                     </Button>
                   ) : (
                     <>
-                      <Button className="w-full">
-                        {mode === "new" ? "Create Listing" : "Save & Publish"}
+                      <Button className="w-full" onClick={handleSave} disabled={saving}>
+                        {mode === "create" ? "Create Listing" : "Save & Publish"}
                       </Button>
-                      <Button variant="outline" className="w-full">
+                      <Button variant="outline" className="w-full" onClick={handleSave} disabled={saving}>
                         Save as Draft
                       </Button>
                       <Separator className="my-1" />
-                      {mode === "edit" && id ? (
+                      {mode === "edit" && cafe?.id ? (
                         <Button variant="outline" className="w-full" asChild>
-                          <Link href={`/admin/cafes/${id}/preview`}>
+                          <Link href={`/admin/cafes/${cafe.id}/preview`}>
                             <Eye />
                             Preview Listing
                           </Link>

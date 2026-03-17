@@ -1,3 +1,6 @@
+import { getCafeById } from "@/lib/queries/cafes"
+import { getAllTags } from "@/lib/queries/tags"
+import { getCategoriesForCafe } from "@/lib/queries/menu"
 import { CafeEditorForm } from "@/components/admin/cafe-editor-form"
 
 interface EditCafePageProps {
@@ -6,5 +9,18 @@ interface EditCafePageProps {
 
 export default async function EditCafePage({ params }: EditCafePageProps) {
   const { id } = await params
-  return <CafeEditorForm mode="edit" id={id} />
+  const [cafe, tags, categories] = await Promise.all([
+    getCafeById(id),
+    getAllTags(true),
+    getCategoriesForCafe(id),
+  ])
+
+  return (
+    <CafeEditorForm
+      mode="edit"
+      cafe={cafe}
+      tags={tags}
+      categories={categories}
+    />
+  )
 }

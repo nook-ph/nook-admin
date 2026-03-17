@@ -55,6 +55,88 @@ export async function getCafes(filters?: {
   return data ?? []
 }
 
+export async function getCafeById(id: string) {
+  const supabase = await createClient()
+  const { data, error } = await supabase
+    .from("cafes")
+    .select(`
+      *,
+      cafe_tags ( tag_id, is_featured ),
+      menu_items (
+        id, name, price, is_highlight,
+        image_url, category_id,
+        menu_categories ( id, name )
+      ),
+      cafe_owner_cafe ( owner_id )
+    `)
+    .eq("id", id)
+    .single()
+
+  if (error) throw error
+  return data
+}
+
+export async function createCafe(payload: {
+  name: string
+  neighborhood: string
+  city?: string
+  description?: string
+  address?: string
+  lat?: number
+  lng?: number
+  operating_hours?: object
+  social_links?: object
+  status?: string
+  is_new?: boolean
+  is_featured?: boolean
+}) {
+  const supabase = createAdminClient()
+  const { data, error } = await supabase
+    .from("cafes")
+    .insert({ ...payload, status: payload.status ?? "draft" })
+    .select()
+    .single()
+
+  if (error) throw error
+  return data
+}
+
+export async function updateCafe(id: string, payload: Partial<Cafe>) {
+  const supabase = createAdminClient()
+  const { data, error } = await supabase
+    .from("cafes")
+    .update(payload)
+    .eq("id", id)
+    .select()
+    .single()
+
+  if (error) throw error
+  return data
+}
+
+export async function getCafeForOwner(ownerUserId: string) {
+  const supabase = await createClient()
+  const { data, error } = await supabase
+    .from("cafe_owner_cafe")
+    .select(`
+      cafe_id, role,
+      cafes (
+        *,
+        cafe_tags ( tag_id, is_featured, tags (*) ),
+        menu_items (
+          id, name, price, is_highlight,
+          image_url, category_id,
+          menu_categories ( id, name, is_global )
+        )
+      )
+    `)
+    .eq("owner_id", ownerUserId)
+    .single()
+
+  if (error) throw error
+  return data
+}
+
 export async function getDashboardStats() {
   const supabase = createAdminClient()
 
