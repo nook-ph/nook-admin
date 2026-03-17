@@ -278,9 +278,8 @@ export function CreateOwnerForm({ cafe }: CreateOwnerFormProps) {
                 discovery app for Cebu.
               </p>
               <p>&nbsp;</p>
-              <p>Dashboard: [web admin URL]</p>
-              <p>Email: {email || "[their email]"}</p>
-              <p>Temporary password: ••••••••••••</p>
+              <p>Click the link below to set your password and access your dashboard:</p>
+              <p>[Set password link — valid for 24 hours]</p>
               {note && (
                 <>
                   <p>&nbsp;</p>
@@ -299,15 +298,15 @@ export function CreateOwnerForm({ cafe }: CreateOwnerFormProps) {
         <Info className="size-4 text-amber-600 dark:text-amber-400 mt-0.5 shrink-0" />
         <div className="space-y-1">
           <p className="text-sm font-medium text-amber-900 dark:text-amber-100">
-            About the temporary password
+            About the invite link
           </p>
           <ul className="text-xs text-amber-700 dark:text-amber-300 space-y-0.5 list-disc list-inside">
-            <li>Randomly generated — 12 characters</li>
-            <li>Owner is prompted to change it on first login</li>
-            <li>Expires after 7 days if unused</li>
+            <li>Owner receives an email with a one-time set-password link</li>
+            <li>They choose their own password on first login</li>
+            <li>Link expires after 24 hours if unused</li>
             <li>
-              Use &apos;Resend Credentials&apos; in Owner Management if it
-              expires
+              Use &apos;Resend Credentials&apos; in Owner Management to send a
+              fresh link
             </li>
           </ul>
         </div>
