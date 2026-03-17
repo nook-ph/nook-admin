@@ -4,7 +4,6 @@ import {
   ChatCircle,
   IdentificationBadge,
   Storefront,
-  UserCircleDashed,
   Users,
   WarningCircle,
 } from "@phosphor-icons/react"
@@ -19,19 +18,27 @@ import {
   CardTitle,
 } from "@/components/ui/card"
 
-export function SectionCards() {
+type Stats = {
+  totalCafes: number
+  totalUsers: number
+  reviewsThisWeek: number
+  activeOwners: number
+  unclaimedCafes: number
+}
+
+export function SectionCards({ stats }: { stats: Stats }) {
   return (
     <div className="grid grid-cols-1 gap-4 *:data-[slot=card]:shadow-xs sm:grid-cols-2 xl:grid-cols-3">
       <Card>
         <CardHeader>
           <CardDescription>Total Cafes</CardDescription>
           <CardTitle className="text-2xl font-semibold tabular-nums sm:text-3xl">
-            24
+            {stats.totalCafes}
           </CardTitle>
           <CardAction>
             <Badge variant="outline">
               <Storefront />
-              24
+              {stats.totalCafes}
             </Badge>
           </CardAction>
         </CardHeader>
@@ -47,11 +54,11 @@ export function SectionCards() {
         <CardHeader>
           <CardDescription>Unclaimed Listings</CardDescription>
           <CardTitle className="text-2xl font-semibold tabular-nums sm:text-3xl">
-            8
+            {stats.unclaimedCafes}
           </CardTitle>
           <CardAction>
             <Badge variant="destructive">
-              <WarningCircle />8
+              <WarningCircle />{stats.unclaimedCafes}
             </Badge>
           </CardAction>
         </CardHeader>
@@ -70,12 +77,12 @@ export function SectionCards() {
         <CardHeader>
           <CardDescription>Total App Users</CardDescription>
           <CardTitle className="text-2xl font-semibold tabular-nums sm:text-3xl">
-            1,280
+            {stats.totalUsers.toLocaleString()}
           </CardTitle>
           <CardAction>
             <Badge variant="outline">
               <Users />
-              1,280
+              {stats.totalUsers.toLocaleString()}
             </Badge>
           </CardAction>
         </CardHeader>
@@ -93,12 +100,12 @@ export function SectionCards() {
         <CardHeader>
           <CardDescription>Active Owners</CardDescription>
           <CardTitle className="text-2xl font-semibold tabular-nums sm:text-3xl">
-            18
+            {stats.activeOwners}
           </CardTitle>
           <CardAction>
             <Badge variant="outline">
               <IdentificationBadge />
-              18
+              {stats.activeOwners}
             </Badge>
           </CardAction>
         </CardHeader>
@@ -117,12 +124,12 @@ export function SectionCards() {
         <CardHeader>
           <CardDescription>Reviews This Week</CardDescription>
           <CardTitle className="text-2xl font-semibold tabular-nums sm:text-3xl">
-            43
+            {stats.reviewsThisWeek}
           </CardTitle>
           <CardAction>
             <Badge variant="outline">
               <ChatCircle />
-              43
+              {stats.reviewsThisWeek}
             </Badge>
           </CardAction>
         </CardHeader>
@@ -132,29 +139,6 @@ export function SectionCards() {
           </div>
           <div className="text-muted-foreground">
             Reviews posted in the last 7 days
-          </div>
-        </CardFooter>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardDescription>Owners Never Logged In</CardDescription>
-          <CardTitle className="text-2xl font-semibold tabular-nums sm:text-3xl">
-            3
-          </CardTitle>
-          <CardAction>
-            <Badge variant="destructive">
-              <UserCircleDashed />3
-            </Badge>
-          </CardAction>
-        </CardHeader>
-        <CardFooter className="flex-col items-start gap-1.5 text-sm">
-          <div className="line-clamp-1 flex gap-2 font-medium">
-            Follow up with these owners{" "}
-            <UserCircleDashed className="size-4" />
-          </div>
-          <div className="text-muted-foreground">
-            Sent credentials but never accessed portal
           </div>
         </CardFooter>
       </Card>
