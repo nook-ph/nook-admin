@@ -34,7 +34,7 @@ export async function getCafes(filters?: {
   neighborhood?: string
   search?: string
 }) {
-  const supabase = await createClient()
+  const supabase = createAdminClient()
   let query = supabase
     .from("cafes")
     .select(`
@@ -56,7 +56,7 @@ export async function getCafes(filters?: {
 }
 
 export async function getCafeById(id: string) {
-  const supabase = await createClient()
+  const supabase = createAdminClient()
   const { data, error } = await supabase
     .from("cafes")
     .select(`
