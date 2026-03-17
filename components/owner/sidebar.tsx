@@ -2,7 +2,7 @@
 
 import * as React from "react"
 import Link from "next/link"
-import { usePathname } from "next/navigation"
+import { usePathname, useRouter } from "next/navigation"
 import {
   SquaresFourIcon,
   PencilSimpleIcon,
@@ -14,6 +14,7 @@ import {
   SignOutIcon,
   StorefrontIcon,
 } from "@phosphor-icons/react"
+import { createClient } from "@/lib/supabase/client"
 
 import {
   Sidebar,
@@ -44,6 +45,14 @@ const navItems: NavItem[] = [
 
 export function OwnerSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const pathname = usePathname()
+  const router = useRouter()
+  const supabase = createClient()
+
+  async function handleLogout() {
+    await supabase.auth.signOut()
+    router.push("/login")
+    router.refresh()
+  }
 
   return (
     <Sidebar collapsible="icon" {...props}>
@@ -89,7 +98,7 @@ export function OwnerSidebar({ ...props }: React.ComponentProps<typeof Sidebar>)
       <SidebarFooter>
         <SidebarMenu>
           <SidebarMenuItem>
-            <SidebarMenuButton tooltip="Logout">
+            <SidebarMenuButton tooltip="Logout" onClick={handleLogout}>
               <SignOutIcon />
               <span>Logout</span>
             </SidebarMenuButton>
