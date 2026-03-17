@@ -5,13 +5,14 @@ import Link from "next/link"
 import { usePathname } from "next/navigation"
 import {
   SquaresFourIcon,
-  StorefrontIcon,
-  IdentificationCardIcon,
-  UsersIcon,
+  PencilSimpleIcon,
+  ImagesIcon,
   TagIcon,
-  ChatCircleTextIcon,
+  ForkKnifeIcon,
+  StarIcon,
+  EyeIcon,
   SignOutIcon,
-  CommandIcon,
+  StorefrontIcon,
 } from "@phosphor-icons/react"
 
 import {
@@ -32,15 +33,16 @@ type NavItem = {
 }
 
 const navItems: NavItem[] = [
-  { title: "Dashboard", url: "/admin/dashboard", icon: SquaresFourIcon },
-  { title: "Cafes", url: "/admin/cafes", icon: StorefrontIcon },
-  { title: "Owners", url: "/admin/owners", icon: IdentificationCardIcon },
-  { title: "Users", url: "/admin/users", icon: UsersIcon },
-  { title: "Tags", url: "/admin/tags", icon: TagIcon },
-  { title: "Reviews", url: "/admin/reviews", icon: ChatCircleTextIcon },
+  { title: "Dashboard", url: "/owner/dashboard", icon: SquaresFourIcon },
+  { title: "Edit Listing", url: "/owner/profile", icon: PencilSimpleIcon },
+  { title: "Photos", url: "/owner/photos", icon: ImagesIcon },
+  { title: "Tags", url: "/owner/tags", icon: TagIcon },
+  { title: "Menu", url: "/owner/menu", icon: ForkKnifeIcon },
+  { title: "Reviews", url: "/owner/reviews", icon: StarIcon },
+  { title: "Preview", url: "/owner/preview", icon: EyeIcon },
 ]
 
-export function AdminSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
+export function OwnerSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const pathname = usePathname()
 
   return (
@@ -49,13 +51,13 @@ export function AdminSidebar({ ...props }: React.ComponentProps<typeof Sidebar>)
         <SidebarMenu>
           <SidebarMenuItem>
             <SidebarMenuButton size="lg" asChild>
-              <Link href="/admin/dashboard">
+              <Link href="/owner/dashboard">
                 <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground">
-                  <CommandIcon className="size-4" />
+                  <StorefrontIcon className="size-4" />
                 </div>
                 <div className="grid flex-1 text-left text-sm leading-tight">
                   <span className="truncate font-semibold">Nook</span>
-                  <span className="truncate text-xs text-muted-foreground">Superadmin</span>
+                  <span className="truncate text-xs text-muted-foreground">Cafe Portal</span>
                 </div>
               </Link>
             </SidebarMenuButton>

@@ -1,3 +1,267 @@
+"use client"
+
+import * as React from "react"
+import {
+  Plus,
+  PencilSimple,
+  EyeSlash,
+  DotsSixVertical,
+  Info,
+} from "@phosphor-icons/react"
+
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Badge } from "@/components/ui/badge"
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog"
+
+interface Tag {
+  name: string
+  usage: number
+  hidden?: boolean
+}
+
+interface TagCategory {
+  title: string
+  tags: Tag[]
+  vibeWarning?: boolean
+}
+
+const TAG_CATEGORIES: TagCategory[] = [
+  {
+    title: "Best For",
+    tags: [
+      { name: "Date Spot", usage: 8 },
+      { name: "Solo Work / Study", usage: 12 },
+      { name: "Group Hangout", usage: 9 },
+      { name: "Book Cafe", usage: 4 },
+      { name: "Co-working Space", usage: 6 },
+      { name: "Late Night", usage: 5 },
+      { name: "Quick Coffee", usage: 7 },
+      { name: "Family Friendly", usage: 3 },
+      { name: "Nature Cafe", usage: 4 },
+      { name: "Special Occasion", usage: 2 },
+    ],
+  },
+  {
+    title: "Amenities",
+    tags: [
+      { name: "Free WiFi", usage: 18 },
+      { name: "High-Speed WiFi", usage: 9 },
+      { name: "Power Outlets", usage: 14 },
+      { name: "Air Conditioned", usage: 20 },
+      { name: "Outdoor Seating", usage: 11 },
+      { name: "Pet Friendly", usage: 6 },
+      { name: "Parking Available", usage: 8 },
+      { name: "Wheelchair Accessible", usage: 3 },
+    ],
+  },
+  {
+    title: "Payment",
+    tags: [
+      { name: "Cash", usage: 24 },
+      { name: "GCash", usage: 21 },
+      { name: "Maya", usage: 18 },
+      { name: "Credit / Debit Card", usage: 12 },
+    ],
+  },
+  {
+    title: "Vibe",
+    vibeWarning: true,
+    tags: [
+      { name: "Aesthetic / IG-worthy", usage: 0, hidden: true },
+      { name: "Cozy & Warm", usage: 0, hidden: true },
+      { name: "Minimalist", usage: 0, hidden: true },
+      { name: "Industrial", usage: 0, hidden: true },
+      { name: "Garden / Botanical", usage: 0, hidden: true },
+      { name: "Dark Academia", usage: 0, hidden: true },
+    ],
+  },
+]
+
+function TagRow({ tag }: { tag: Tag }) {
+  return (
+    <div className="flex items-center gap-3 py-3 border-b last:border-0">
+      <DotsSixVertical className="text-muted-foreground size-4 cursor-grab shrink-0" />
+      <div className="flex-1 flex items-center gap-3">
+        <span className="text-sm font-medium">{tag.name}</span>
+        <Badge variant="secondary">
+          {tag.usage} {tag.usage === 1 ? "cafe" : "cafes"}
+        </Badge>
+        {tag.hidden && (
+          <Badge
+            variant="outline"
+            className="text-amber-700 border-amber-300 text-xs"
+          >
+            Hidden
+          </Badge>
+        )}
+      </div>
+      <div className="flex gap-1">
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={() => console.log(`Edit ${tag.name}`)}
+        >
+          <PencilSimple />
+        </Button>
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={() => console.log("Tag deactivated")}
+        >
+          <EyeSlash />
+        </Button>
+      </div>
+    </div>
+  )
+}
+
+function AddTagDialog() {
+  const [open, setOpen] = React.useState(false)
+  const [tagName, setTagName] = React.useState("")
+  const [category, setCategory] = React.useState("")
+  const [iconName, setIconName] = React.useState("")
+
+  function handleAdd() {
+    console.log("Tag added")
+    setTagName("")
+    setCategory("")
+    setIconName("")
+    setOpen(false)
+  }
+
+  function handleCancel() {
+    setTagName("")
+    setCategory("")
+    setIconName("")
+    setOpen(false)
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <Button>
+          <Plus />
+          Add Tag
+        </Button>
+      </DialogTrigger>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Add Tag</DialogTitle>
+          <DialogDescription>Add a new tag to the master list</DialogDescription>
+        </DialogHeader>
+        <div className="flex flex-col gap-4">
+          <div className="flex flex-col gap-1.5">
+            <label className="text-xs font-medium">Tag name</label>
+            <Input
+              placeholder="e.g. Dog Friendly"
+              value={tagName}
+              onChange={(e) => setTagName(e.target.value)}
+            />
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <label className="text-xs font-medium">Category</label>
+            <Select value={category} onValueChange={setCategory}>
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder="Select category" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="best-for">Best For</SelectItem>
+                <SelectItem value="amenities">Amenities</SelectItem>
+                <SelectItem value="payment">Payment</SelectItem>
+                <SelectItem value="vibe">Vibe</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <label className="text-xs font-medium">Icon name</label>
+            <Input
+              placeholder="e.g. PawPrint"
+              value={iconName}
+              onChange={(e) => setIconName(e.target.value)}
+            />
+            <p className="text-xs text-muted-foreground">
+              Use a Phosphor icon name
+            </p>
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={handleCancel}>
+            Cancel
+          </Button>
+          <Button onClick={handleAdd}>Add Tag</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
 export default function TagsPage() {
-  return null
+  return (
+    <div className="flex flex-col gap-6 px-4 py-6 lg:px-6">
+      {/* Section 1 — Page header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-xl font-semibold">Tags</h1>
+          <p className="text-muted-foreground text-sm">
+            Master tag list — all tags used across the app
+          </p>
+        </div>
+        <AddTagDialog />
+      </div>
+
+      {/* Section 2 — Tag categories */}
+      <div className="flex flex-col gap-4">
+        {TAG_CATEGORIES.map((category) => (
+          <React.Fragment key={category.title}>
+            {category.vibeWarning && (
+              <div className="flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm dark:border-amber-800 dark:bg-amber-950">
+                <Info className="size-4 text-amber-600 dark:text-amber-400 shrink-0" />
+                <span className="text-amber-800 dark:text-amber-200">
+                  Vibe tags are hidden from the app and owner admin until Phase
+                  2. You can tag cafes with these now — they will appear
+                  automatically when Phase 2 launches.
+                </span>
+              </div>
+            )}
+            <Card>
+              <CardHeader>
+                <CardTitle>{category.title}</CardTitle>
+                <CardDescription>
+                  {category.tags.length} tags
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                {category.tags.map((tag) => (
+                  <TagRow key={tag.name} tag={tag} />
+                ))}
+              </CardContent>
+            </Card>
+          </React.Fragment>
+        ))}
+      </div>
+    </div>
+  )
 }
