@@ -77,6 +77,7 @@ import {
 export interface CafeEditorFormProps {
   mode: "new" | "edit"
   id?: string
+  disabled?: boolean
 }
 
 const DAYS = [
@@ -214,11 +215,15 @@ function FieldGroup({
 // Menu sub-components
 // ---------------------------------------------------------------------------
 
-function ImageUploadCell({ onClick }: { onClick?: () => void }) {
+function ImageUploadCell({ onClick, disabled }: { onClick?: () => void; disabled?: boolean }) {
   return (
     <div
-      className="size-10 rounded-md border-2 border-dashed border-border flex items-center justify-center cursor-pointer hover:bg-muted shrink-0"
-      onClick={onClick}
+      className={`size-10 rounded-md border-2 border-dashed border-border flex items-center justify-center shrink-0 ${
+        disabled
+          ? "pointer-events-none opacity-60"
+          : "cursor-pointer hover:bg-muted"
+      }`}
+      onClick={disabled ? undefined : onClick}
     >
       <ImageSquare className="size-4 text-muted-foreground" />
     </div>
@@ -231,6 +236,7 @@ interface MenuItemRowProps {
   highlightCount: number
   onToggleHighlight: (id: number, val: boolean) => void
   onDelete: (id: number) => void
+  disabled?: boolean
 }
 
 function MenuItemRow({
@@ -239,20 +245,25 @@ function MenuItemRow({
   highlightCount,
   onToggleHighlight,
   onDelete,
+  disabled = false,
 }: MenuItemRowProps) {
   const atHighlightCap = highlightCount >= 5 && !item.isHighlight
 
   return (
     <div className="flex items-center gap-3 py-3 border-b last:border-0">
       {/* Col 1 — drag handle */}
-      <DotsSixVertical className="text-muted-foreground size-4 cursor-grab shrink-0" />
+      <DotsSixVertical
+        className={`text-muted-foreground size-4 shrink-0 ${
+          disabled ? "pointer-events-none opacity-60" : "cursor-grab"
+        }`}
+      />
 
       {/* Col 2 — image cell */}
       {item.isHighlight ? (
         item.hasImage ? (
           <div className="size-10 rounded-md bg-muted shrink-0" />
         ) : (
-          <ImageUploadCell />
+          <ImageUploadCell disabled={disabled} />
         )
       ) : (
         <div className="size-10 shrink-0" />
@@ -294,6 +305,7 @@ function MenuItemRow({
             <Switch
               checked={item.isHighlight}
               onCheckedChange={(val) => onToggleHighlight(item.id, val)}
+              disabled={disabled}
             />
             <span className="text-xs text-muted-foreground">Highlight</span>
           </>
@@ -302,7 +314,7 @@ function MenuItemRow({
 
       {/* Col 5 — actions */}
       <div className="flex shrink-0">
-        <Button variant="ghost" size="icon">
+        <Button variant="ghost" size="icon" disabled={disabled}>
           <PencilSimple />
         </Button>
         <Button
@@ -310,6 +322,7 @@ function MenuItemRow({
           size="icon"
           className="text-destructive hover:text-destructive"
           onClick={() => onDelete(item.id)}
+          disabled={disabled}
         >
           <Trash />
         </Button>
@@ -509,9 +522,11 @@ function AddItemDialog({
 function MenuCategoriesCard({
   categories,
   onDeleteCategory,
+  disabled = false,
 }: {
   categories: MenuCategory[]
   onDeleteCategory: (id: number) => void
+  disabled?: boolean
 }) {
   const [addCategoryOpen, setAddCategoryOpen] = React.useState(false)
   const [deleteCategoryId, setDeleteCategoryId] = React.useState<number | null>(null)
@@ -531,7 +546,11 @@ function MenuCategoriesCard({
               key={cat.id}
               className="flex items-center gap-3 py-3 border-b last:border-0"
             >
-              <DotsSixVertical className="text-muted-foreground size-4 cursor-grab shrink-0" />
+              <DotsSixVertical
+                className={`text-muted-foreground size-4 shrink-0 ${
+                  disabled ? "pointer-events-none opacity-60" : "cursor-grab"
+                }`}
+              />
               <div className="flex-1 flex items-center">
                 <span className="text-sm font-medium">{cat.name}</span>
                 <Badge variant="secondary" className="ml-2 text-xs">
@@ -539,7 +558,7 @@ function MenuCategoriesCard({
                 </Badge>
               </div>
               <div className="flex gap-1 shrink-0">
-                <Button variant="ghost" size="icon">
+                <Button variant="ghost" size="icon" disabled={disabled}>
                   <PencilSimple />
                 </Button>
                 <Button
@@ -547,6 +566,7 @@ function MenuCategoriesCard({
                   size="icon"
                   className="text-destructive hover:text-destructive"
                   onClick={() => setDeleteCategoryId(cat.id)}
+                  disabled={disabled}
                 >
                   <Trash />
                 </Button>
@@ -558,6 +578,7 @@ function MenuCategoriesCard({
               variant="outline"
               size="sm"
               onClick={() => setAddCategoryOpen(true)}
+              disabled={disabled}
             >
               <Plus />
               Add Category
@@ -606,11 +627,13 @@ function MenuItemsCard({
   categories,
   onToggleHighlight,
   onDeleteItem,
+  disabled = false,
 }: {
   items: FullMenuItem[]
   categories: MenuCategory[]
   onToggleHighlight: (id: number, val: boolean) => void
   onDeleteItem: (id: number) => void
+  disabled?: boolean
 }) {
   const [addItemOpen, setAddItemOpen] = React.useState(false)
   const [deleteItemId, setDeleteItemId] = React.useState<number | null>(null)
@@ -662,6 +685,7 @@ function MenuItemsCard({
               <Button
                 size="sm"
                 onClick={() => setAddItemOpen(true)}
+                disabled={disabled}
               >
                 <Plus />
                 Add Item
@@ -678,6 +702,7 @@ function MenuItemsCard({
                   highlightCount={highlightCount}
                   onToggleHighlight={onToggleHighlight}
                   onDelete={handleDelete}
+                  disabled={disabled}
                 />
               ))}
             </TabsContent>
@@ -707,6 +732,7 @@ function MenuItemsCard({
                   highlightCount={highlightCount}
                   onToggleHighlight={onToggleHighlight}
                   onDelete={handleDelete}
+                  disabled={disabled}
                 />
               ))}
             </TabsContent>
@@ -726,6 +752,7 @@ function MenuItemsCard({
                       highlightCount={highlightCount}
                       onToggleHighlight={onToggleHighlight}
                       onDelete={handleDelete}
+                      disabled={disabled}
                     />
                   ))}
                 </div>
@@ -769,7 +796,7 @@ function MenuItemsCard({
 // Main component
 // ---------------------------------------------------------------------------
 
-export function CafeEditorForm({ mode, id }: CafeEditorFormProps) {
+export function CafeEditorForm({ mode, id, disabled = false }: CafeEditorFormProps) {
   // --- Basic Info ---
   const [description, setDescription] = React.useState("")
 
@@ -827,24 +854,26 @@ export function CafeEditorForm({ mode, id }: CafeEditorFormProps) {
   return (
     <TooltipProvider>
       <div className="max-w-6xl mx-auto px-6 py-6">
-        {/* Page header */}
-        <div className="flex items-center gap-4 mb-8">
-          <Button variant="ghost" size="icon" asChild>
-            <Link href="/admin/cafes">
-              <ArrowLeft />
-            </Link>
-          </Button>
-          <div className="flex flex-col">
-            <h1 className="text-xl font-semibold">
-              {mode === "new" ? "Add Cafe" : "Edit Cafe"}
-            </h1>
-            <p className="text-muted-foreground text-sm">
-              {mode === "new"
-                ? "Fill in the details below"
-                : "Update the cafe details"}
-            </p>
+        {/* Page header — hidden in disabled/view mode (the page provides its own) */}
+        {!disabled && (
+          <div className="flex items-center gap-4 mb-8">
+            <Button variant="ghost" size="icon" asChild>
+              <Link href="/admin/cafes">
+                <ArrowLeft />
+              </Link>
+            </Button>
+            <div className="flex flex-col">
+              <h1 className="text-xl font-semibold">
+                {mode === "new" ? "Add Cafe" : "Edit Cafe"}
+              </h1>
+              <p className="text-muted-foreground text-sm">
+                {mode === "new"
+                  ? "Fill in the details below"
+                  : "Update the cafe details"}
+              </p>
+            </div>
           </div>
-        </div>
+        )}
 
         {/* Two-column layout */}
         <div className="flex flex-col lg:flex-row gap-6 items-start">
@@ -860,13 +889,13 @@ export function CafeEditorForm({ mode, id }: CafeEditorFormProps) {
               </CardHeader>
               <CardContent className="flex flex-col gap-4">
                 <FieldGroup label="Cafe name">
-                  <Input placeholder="e.g. Slowpoke Coffee" />
+                  <Input placeholder="e.g. Slowpoke Coffee" disabled={disabled} />
                 </FieldGroup>
                 <FieldGroup label="Neighborhood">
-                  <Input placeholder="e.g. IT Park" />
+                  <Input placeholder="e.g. IT Park" disabled={disabled} />
                 </FieldGroup>
                 <FieldGroup label="City">
-                  <Input defaultValue="Cebu City" />
+                  <Input defaultValue="Cebu City" disabled={disabled} />
                 </FieldGroup>
                 <FieldGroup label="Description">
                   <Textarea
@@ -876,6 +905,7 @@ export function CafeEditorForm({ mode, id }: CafeEditorFormProps) {
                     onChange={(e) => setDescription(e.target.value)}
                     className="resize-none"
                     rows={4}
+                    disabled={disabled}
                   />
                   <div className="flex justify-end">
                     <span className="text-xs text-muted-foreground">
@@ -896,7 +926,7 @@ export function CafeEditorForm({ mode, id }: CafeEditorFormProps) {
               </CardHeader>
               <CardContent className="flex flex-col gap-4">
                 <FieldGroup label="Address">
-                  <Input placeholder="e.g. Ground Floor, IT Park" />
+                  <Input placeholder="e.g. Ground Floor, IT Park" disabled={disabled} />
                 </FieldGroup>
 
                 <div className="mt-3 h-64 w-full rounded-lg border border-dashed border-border bg-muted flex flex-col items-center justify-center gap-2 text-muted-foreground">
@@ -940,12 +970,12 @@ export function CafeEditorForm({ mode, id }: CafeEditorFormProps) {
                       <Input
                         className="w-32"
                         placeholder="08:00"
-                        disabled={isClosed}
+                        disabled={isClosed || disabled}
                       />
                       <Input
                         className="w-32"
                         placeholder="22:00"
-                        disabled={isClosed}
+                        disabled={isClosed || disabled}
                       />
                       <div className="flex items-center gap-2 ml-auto">
                         <label
@@ -963,6 +993,7 @@ export function CafeEditorForm({ mode, id }: CafeEditorFormProps) {
                               [day]: val,
                             }))
                           }
+                          disabled={disabled}
                         />
                       </div>
                     </div>
@@ -982,7 +1013,13 @@ export function CafeEditorForm({ mode, id }: CafeEditorFormProps) {
               <CardContent>
                 <div className="grid grid-cols-3 gap-3 sm:grid-cols-4">
                   {/* Upload button */}
-                  <div className="aspect-square rounded-lg border-2 border-dashed border-border flex flex-col items-center justify-center gap-1 cursor-pointer hover:bg-muted transition-colors text-muted-foreground">
+                  <div
+                    className={`aspect-square rounded-lg border-2 border-dashed border-border flex flex-col items-center justify-center gap-1 transition-colors text-muted-foreground ${
+                      disabled
+                        ? "pointer-events-none opacity-60"
+                        : "cursor-pointer hover:bg-muted"
+                    }`}
+                  >
                     <Plus className="size-6" />
                     <span className="text-xs">Add photo</span>
                   </div>
@@ -993,6 +1030,7 @@ export function CafeEditorForm({ mode, id }: CafeEditorFormProps) {
                       variant="ghost"
                       size="icon"
                       className="absolute top-1 right-1 size-6 bg-background/80 hover:bg-background"
+                      disabled={disabled}
                     >
                       <X className="size-3" />
                     </Button>
@@ -1007,6 +1045,7 @@ export function CafeEditorForm({ mode, id }: CafeEditorFormProps) {
                       variant="ghost"
                       size="icon"
                       className="absolute top-1 right-1 size-6 bg-background/80 hover:bg-background"
+                      disabled={disabled}
                     >
                       <X className="size-3" />
                     </Button>
@@ -1018,6 +1057,7 @@ export function CafeEditorForm({ mode, id }: CafeEditorFormProps) {
                       variant="ghost"
                       size="icon"
                       className="absolute top-1 right-1 size-6 bg-background/80 hover:bg-background"
+                      disabled={disabled}
                     >
                       <X className="size-3" />
                     </Button>
@@ -1056,6 +1096,7 @@ export function CafeEditorForm({ mode, id }: CafeEditorFormProps) {
                             variant="outline"
                             size="sm"
                             onClick={() => toggleTag(tag)}
+                            disabled={disabled}
                             className={
                               selected
                                 ? "bg-primary text-primary-foreground border-primary"
@@ -1072,7 +1113,7 @@ export function CafeEditorForm({ mode, id }: CafeEditorFormProps) {
 
                 <div className="flex flex-col gap-1.5 mt-6">
                   <FieldLabel>Featured tag (shown on cafe cards)</FieldLabel>
-                  <Select value={featuredTag} onValueChange={setFeaturedTag}>
+                  <Select value={featuredTag} onValueChange={setFeaturedTag} disabled={disabled}>
                     <SelectTrigger className="w-full">
                       <SelectValue placeholder="Select one tag..." />
                     </SelectTrigger>
@@ -1092,12 +1133,14 @@ export function CafeEditorForm({ mode, id }: CafeEditorFormProps) {
             <MenuCategoriesCard
               categories={menuCategories}
               onDeleteCategory={handleDeleteCategory}
+              disabled={disabled}
             />
             <MenuItemsCard
               items={menuItems}
               categories={menuCategories}
               onToggleHighlight={handleToggleHighlight}
               onDeleteItem={handleDeleteItem}
+              disabled={disabled}
             />
 
             {/* CARD 7 — Social Links */}
@@ -1112,6 +1155,7 @@ export function CafeEditorForm({ mode, id }: CafeEditorFormProps) {
                     <Input
                       className="pl-8"
                       placeholder="https://instagram.com/..."
+                      disabled={disabled}
                     />
                   </div>
                 </FieldGroup>
@@ -1121,6 +1165,7 @@ export function CafeEditorForm({ mode, id }: CafeEditorFormProps) {
                     <Input
                       className="pl-8"
                       placeholder="https://facebook.com/..."
+                      disabled={disabled}
                     />
                   </div>
                 </FieldGroup>
@@ -1130,13 +1175,14 @@ export function CafeEditorForm({ mode, id }: CafeEditorFormProps) {
                     <Input
                       className="pl-8"
                       placeholder="https://tiktok.com/..."
+                      disabled={disabled}
                     />
                   </div>
                 </FieldGroup>
                 <FieldGroup label="Website">
                   <div className="relative">
                     <Globe className="absolute left-2.5 top-1/2 -translate-y-1/2 size-4 text-muted-foreground pointer-events-none" />
-                    <Input className="pl-8" placeholder="https://..." />
+                    <Input className="pl-8" placeholder="https://..." disabled={disabled} />
                   </div>
                 </FieldGroup>
               </CardContent>
@@ -1191,6 +1237,7 @@ export function CafeEditorForm({ mode, id }: CafeEditorFormProps) {
                   <Select
                     value={listingStatus}
                     onValueChange={setListingStatus}
+                    disabled={disabled}
                   >
                     <SelectTrigger className="w-full">
                       <SelectValue />
@@ -1220,6 +1267,7 @@ export function CafeEditorForm({ mode, id }: CafeEditorFormProps) {
                     <Switch
                       checked={flagNew}
                       onCheckedChange={setFlagNew}
+                      disabled={disabled}
                     />
                   </div>
                   <div className="flex items-center justify-between">
@@ -1232,6 +1280,7 @@ export function CafeEditorForm({ mode, id }: CafeEditorFormProps) {
                     <Switch
                       checked={flagFeatured}
                       onCheckedChange={setFlagFeatured}
+                      disabled={disabled}
                     />
                   </div>
                   <div className="flex items-center justify-between">
@@ -1244,6 +1293,7 @@ export function CafeEditorForm({ mode, id }: CafeEditorFormProps) {
                     <Switch
                       checked={flagActive}
                       onCheckedChange={setFlagActive}
+                      disabled={disabled}
                     />
                   </div>
                 </CardContent>
@@ -1252,38 +1302,49 @@ export function CafeEditorForm({ mode, id }: CafeEditorFormProps) {
               {/* SIDEBAR CARD 3 — Actions */}
               <Card>
                 <CardContent className="pt-6 space-y-2">
-                  <Button className="w-full">
-                    {mode === "new" ? "Create Listing" : "Save & Publish"}
-                  </Button>
-                  <Button variant="outline" className="w-full">
-                    Save as Draft
-                  </Button>
-                  <Separator className="my-1" />
-                  {mode === "edit" && id ? (
-                    <Button variant="outline" className="w-full" asChild>
-                      <Link href={`/admin/cafes/${id}/preview`}>
-                        <Eye />
-                        Preview Listing
+                  {disabled ? (
+                    <Button className="w-full" asChild>
+                      <Link href={`/admin/cafes/${id}/edit`}>
+                        <PencilSimple />
+                        Edit to make changes
                       </Link>
                     </Button>
                   ) : (
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <span className="block w-full">
-                          <Button
-                            variant="outline"
-                            className="w-full pointer-events-none"
-                            disabled
-                          >
+                    <>
+                      <Button className="w-full">
+                        {mode === "new" ? "Create Listing" : "Save & Publish"}
+                      </Button>
+                      <Button variant="outline" className="w-full">
+                        Save as Draft
+                      </Button>
+                      <Separator className="my-1" />
+                      {mode === "edit" && id ? (
+                        <Button variant="outline" className="w-full" asChild>
+                          <Link href={`/admin/cafes/${id}/preview`}>
                             <Eye />
                             Preview Listing
-                          </Button>
-                        </span>
-                      </TooltipTrigger>
-                      <TooltipContent>
-                        Save the listing first to preview it
-                      </TooltipContent>
-                    </Tooltip>
+                          </Link>
+                        </Button>
+                      ) : (
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <span className="block w-full">
+                              <Button
+                                variant="outline"
+                                className="w-full pointer-events-none"
+                                disabled
+                              >
+                                <Eye />
+                                Preview Listing
+                              </Button>
+                            </span>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            Save the listing first to preview it
+                          </TooltipContent>
+                        </Tooltip>
+                      )}
+                    </>
                   )}
                 </CardContent>
               </Card>

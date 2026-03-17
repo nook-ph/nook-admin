@@ -329,7 +329,12 @@ export default function CafesPage() {
                 <div className="flex items-center gap-3">
                   <div className="size-10 rounded-md bg-muted shrink-0" />
                   <div className="flex flex-col">
-                    <span className="font-medium text-sm">{cafe.name}</span>
+                    <Link
+                      href={`/admin/cafes/${cafe.id}`}
+                      className="font-medium text-sm hover:underline underline-offset-2"
+                    >
+                      {cafe.name}
+                    </Link>
                     <span className="text-xs text-muted-foreground">
                       {cafe.neighborhood}
                     </span>
