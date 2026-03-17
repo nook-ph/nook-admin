@@ -1,7 +1,5 @@
+import { CafeEditorForm } from "@/components/admin/cafe-editor-form"
+
 export default function NewCafePage() {
-  return (
-    <div>
-      <h1>Add Cafe</h1>
-    </div>
-  )
+  return <CafeEditorForm mode="new" />
 }
