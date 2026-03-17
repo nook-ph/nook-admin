@@ -14,6 +14,9 @@ import {
   TiktokLogo,
   Globe,
   Eye,
+  PencilSimple,
+  ImageSquare,
+  Info,
 } from "@phosphor-icons/react"
 
 import { Button } from "@/components/ui/button"
@@ -22,6 +25,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Badge } from "@/components/ui/badge"
 import { Switch } from "@/components/ui/switch"
 import { Separator } from "@/components/ui/separator"
+import { Checkbox } from "@/components/ui/checkbox"
 import {
   Card,
   CardContent,
@@ -36,6 +40,29 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import {
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from "@/components/ui/tabs"
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 import {
   Tooltip,
   TooltipContent,
@@ -114,10 +141,48 @@ const TAG_GROUPS = [
 
 const ALL_TAGS = TAG_GROUPS.flatMap((g) => g.tags)
 
-interface MenuItem {
+// ---------------------------------------------------------------------------
+// Menu types & seed data
+// ---------------------------------------------------------------------------
+
+interface MenuCategory {
   id: number
   name: string
-  price: string
+  isGlobal: boolean
+}
+
+interface FullMenuItem {
+  id: number
+  name: string
+  category: string
+  price: number
+  isHighlight: boolean
+  hasImage: boolean
+}
+
+const SEED_CATEGORIES: MenuCategory[] = [
+  { id: 1, name: "Coffee", isGlobal: true },
+  { id: 2, name: "Non-Coffee", isGlobal: true },
+  { id: 3, name: "Food", isGlobal: true },
+  { id: 4, name: "Pastries", isGlobal: true },
+  { id: 5, name: "Seasonal", isGlobal: false },
+]
+
+const SEED_ITEMS: FullMenuItem[] = [
+  { id: 1, name: "Iced Oat Latte", category: "Coffee", price: 180, isHighlight: true, hasImage: true },
+  { id: 2, name: "Pour Over Ethiopia", category: "Coffee", price: 220, isHighlight: true, hasImage: true },
+  { id: 3, name: "Americano", category: "Coffee", price: 130, isHighlight: false, hasImage: false },
+  { id: 4, name: "Matcha Latte", category: "Non-Coffee", price: 160, isHighlight: true, hasImage: false },
+  { id: 5, name: "Croissant", category: "Pastries", price: 95, isHighlight: false, hasImage: false },
+  { id: 6, name: "Club Sandwich", category: "Food", price: 250, isHighlight: false, hasImage: false },
+]
+
+// ---------------------------------------------------------------------------
+// Helper
+// ---------------------------------------------------------------------------
+
+function formatPrice(price: number) {
+  return `₱${price.toFixed(2)}`
 }
 
 // ---------------------------------------------------------------------------
@@ -142,6 +207,561 @@ function FieldGroup({
       <FieldLabel>{label}</FieldLabel>
       {children}
     </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Menu sub-components
+// ---------------------------------------------------------------------------
+
+function ImageUploadCell({ onClick }: { onClick?: () => void }) {
+  return (
+    <div
+      className="size-10 rounded-md border-2 border-dashed border-border flex items-center justify-center cursor-pointer hover:bg-muted shrink-0"
+      onClick={onClick}
+    >
+      <ImageSquare className="size-4 text-muted-foreground" />
+    </div>
+  )
+}
+
+interface MenuItemRowProps {
+  item: FullMenuItem
+  showCategory?: boolean
+  highlightCount: number
+  onToggleHighlight: (id: number, val: boolean) => void
+  onDelete: (id: number) => void
+}
+
+function MenuItemRow({
+  item,
+  showCategory = true,
+  highlightCount,
+  onToggleHighlight,
+  onDelete,
+}: MenuItemRowProps) {
+  const atHighlightCap = highlightCount >= 5 && !item.isHighlight
+
+  return (
+    <div className="flex items-center gap-3 py-3 border-b last:border-0">
+      {/* Col 1 — drag handle */}
+      <DotsSixVertical className="text-muted-foreground size-4 cursor-grab shrink-0" />
+
+      {/* Col 2 — image cell */}
+      {item.isHighlight ? (
+        item.hasImage ? (
+          <div className="size-10 rounded-md bg-muted shrink-0" />
+        ) : (
+          <ImageUploadCell />
+        )
+      ) : (
+        <div className="size-10 shrink-0" />
+      )}
+
+      {/* Col 3 — info */}
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-2">
+          <span className="text-sm font-medium truncate">{item.name}</span>
+          {item.isHighlight && (
+            <Badge
+              variant="outline"
+              className="text-xs text-green-700 border-green-300 bg-green-50 dark:bg-green-950 dark:text-green-400 dark:border-green-800 shrink-0"
+            >
+              Highlight
+            </Badge>
+          )}
+        </div>
+        <div className="flex items-center gap-2 mt-0.5">
+          {showCategory && (
+            <span className="text-xs text-muted-foreground">{item.category}</span>
+          )}
+          {showCategory && (
+            <span className="text-xs text-muted-foreground">·</span>
+          )}
+          <span className="text-xs text-muted-foreground">{formatPrice(item.price)}</span>
+        </div>
+      </div>
+
+      {/* Col 4 — highlight toggle */}
+      <div className="flex flex-col items-center gap-1 shrink-0">
+        {atHighlightCap ? (
+          <>
+            <Switch checked={false} disabled />
+            <span className="text-xs text-destructive whitespace-nowrap">Max reached</span>
+          </>
+        ) : (
+          <>
+            <Switch
+              checked={item.isHighlight}
+              onCheckedChange={(val) => onToggleHighlight(item.id, val)}
+            />
+            <span className="text-xs text-muted-foreground">Highlight</span>
+          </>
+        )}
+      </div>
+
+      {/* Col 5 — actions */}
+      <div className="flex shrink-0">
+        <Button variant="ghost" size="icon">
+          <PencilSimple />
+        </Button>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="text-destructive hover:text-destructive"
+          onClick={() => onDelete(item.id)}
+        >
+          <Trash />
+        </Button>
+      </div>
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Add Category Dialog
+// ---------------------------------------------------------------------------
+
+function AddCategoryDialog({
+  open,
+  onOpenChange,
+}: {
+  open: boolean
+  onOpenChange: (v: boolean) => void
+}) {
+  const [name, setName] = React.useState("")
+  const [isGlobal, setIsGlobal] = React.useState(false)
+
+  function handleAdd() {
+    console.log("Category added")
+    setName("")
+    setIsGlobal(false)
+    onOpenChange(false)
+  }
+
+  function handleCancel() {
+    setName("")
+    setIsGlobal(false)
+    onOpenChange(false)
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Add Category</DialogTitle>
+        </DialogHeader>
+        <div className="flex flex-col gap-4">
+          <FieldGroup label="Category name">
+            <Input
+              placeholder="e.g. Specialty Drinks"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+            />
+          </FieldGroup>
+          <div className="flex items-center gap-2">
+            <Checkbox
+              id="global-category"
+              checked={isGlobal}
+              onCheckedChange={(v) => setIsGlobal(v === true)}
+            />
+            <label
+              htmlFor="global-category"
+              className="text-xs cursor-pointer select-none"
+            >
+              Make this global (available to all cafes)
+            </label>
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={handleCancel}>
+            Cancel
+          </Button>
+          <Button onClick={handleAdd}>Add Category</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Add Item Dialog
+// ---------------------------------------------------------------------------
+
+interface AddItemDialogProps {
+  open: boolean
+  onOpenChange: (v: boolean) => void
+  highlightCount: number
+  categories: MenuCategory[]
+}
+
+function AddItemDialog({
+  open,
+  onOpenChange,
+  highlightCount,
+  categories,
+}: AddItemDialogProps) {
+  const [itemName, setItemName] = React.useState("")
+  const [category, setCategory] = React.useState("")
+  const [price, setPrice] = React.useState("")
+  const [isHighlight, setIsHighlight] = React.useState(false)
+  const atCap = highlightCount >= 5
+
+  function handleAdd() {
+    console.log("Item added")
+    setItemName("")
+    setCategory("")
+    setPrice("")
+    setIsHighlight(false)
+    onOpenChange(false)
+  }
+
+  function handleCancel() {
+    setItemName("")
+    setCategory("")
+    setPrice("")
+    setIsHighlight(false)
+    onOpenChange(false)
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Add Menu Item</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-4">
+          <FieldGroup label="Item name">
+            <Input
+              placeholder="e.g. Iced Oat Latte"
+              value={itemName}
+              onChange={(e) => setItemName(e.target.value)}
+            />
+          </FieldGroup>
+          <FieldGroup label="Category">
+            <Select value={category} onValueChange={setCategory}>
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder="Select a category" />
+              </SelectTrigger>
+              <SelectContent>
+                {categories.map((cat) => (
+                  <SelectItem key={cat.id} value={cat.name}>
+                    {cat.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </FieldGroup>
+          <FieldGroup label="Price (₱)">
+            <Input
+              type="number"
+              placeholder="0.00"
+              min="0"
+              step="0.01"
+              value={price}
+              onChange={(e) => setPrice(e.target.value)}
+            />
+          </FieldGroup>
+          <div className="flex items-center justify-between">
+            <div className="flex flex-col gap-0.5">
+              <span className="text-sm font-medium">Feature as highlight</span>
+              <span className="text-xs text-muted-foreground">
+                Shows on the cafe detail page with a photo
+              </span>
+            </div>
+            {atCap ? (
+              <div className="flex flex-col items-end gap-1">
+                <Switch checked={false} disabled />
+                <span className="text-xs text-destructive">
+                  Maximum 5 highlights reached
+                </span>
+              </div>
+            ) : (
+              <Switch
+                checked={isHighlight}
+                onCheckedChange={setIsHighlight}
+              />
+            )}
+          </div>
+          {isHighlight && !atCap && (
+            <div className="mt-1 h-32 w-full rounded-lg border-2 border-dashed border-border flex flex-col items-center justify-center gap-2 cursor-pointer hover:bg-muted text-muted-foreground transition-colors">
+              <ImageSquare className="size-6" />
+              <span className="text-sm">Click to upload</span>
+              <span className="text-xs">JPG, PNG or WEBP · Max 5MB</span>
+            </div>
+          )}
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={handleCancel}>
+            Cancel
+          </Button>
+          <Button onClick={handleAdd}>Add Item</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Menu Cards
+// ---------------------------------------------------------------------------
+
+function MenuCategoriesCard({
+  categories,
+  onDeleteCategory,
+}: {
+  categories: MenuCategory[]
+  onDeleteCategory: (id: number) => void
+}) {
+  const [addCategoryOpen, setAddCategoryOpen] = React.useState(false)
+  const [deleteCategoryId, setDeleteCategoryId] = React.useState<number | null>(null)
+
+  return (
+    <>
+      <Card>
+        <CardHeader>
+          <CardTitle>Menu Categories</CardTitle>
+          <CardDescription>
+            Organize menu items into categories
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {categories.map((cat) => (
+            <div
+              key={cat.id}
+              className="flex items-center gap-3 py-3 border-b last:border-0"
+            >
+              <DotsSixVertical className="text-muted-foreground size-4 cursor-grab shrink-0" />
+              <div className="flex-1 flex items-center">
+                <span className="text-sm font-medium">{cat.name}</span>
+                <Badge variant="secondary" className="ml-2 text-xs">
+                  {cat.isGlobal ? "Global" : "Custom"}
+                </Badge>
+              </div>
+              <div className="flex gap-1 shrink-0">
+                <Button variant="ghost" size="icon">
+                  <PencilSimple />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="text-destructive hover:text-destructive"
+                  onClick={() => setDeleteCategoryId(cat.id)}
+                >
+                  <Trash />
+                </Button>
+              </div>
+            </div>
+          ))}
+          <div className="mt-3">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setAddCategoryOpen(true)}
+            >
+              <Plus />
+              Add Category
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      <AddCategoryDialog
+        open={addCategoryOpen}
+        onOpenChange={setAddCategoryOpen}
+      />
+
+      <AlertDialog
+        open={deleteCategoryId !== null}
+        onOpenChange={(open) => { if (!open) setDeleteCategoryId(null) }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete category?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will remove the category. Items in this category will become
+              uncategorized. This cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              variant="destructive"
+              onClick={() => {
+                if (deleteCategoryId !== null) onDeleteCategory(deleteCategoryId)
+                setDeleteCategoryId(null)
+              }}
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
+  )
+}
+
+function MenuItemsCard({
+  items,
+  categories,
+  onToggleHighlight,
+  onDeleteItem,
+}: {
+  items: FullMenuItem[]
+  categories: MenuCategory[]
+  onToggleHighlight: (id: number, val: boolean) => void
+  onDeleteItem: (id: number) => void
+}) {
+  const [addItemOpen, setAddItemOpen] = React.useState(false)
+  const [deleteItemId, setDeleteItemId] = React.useState<number | null>(null)
+
+  const highlights = items.filter((i) => i.isHighlight)
+  const highlightCount = highlights.length
+  const allHighlightsHaveNoImage = highlights.length > 0 && highlights.every((i) => !i.hasImage)
+
+  // Group items by category
+  const byCategory = categories
+    .map((cat) => ({
+      category: cat,
+      items: items.filter((i) => i.category === cat.name),
+    }))
+    .filter((g) => g.items.length > 0)
+
+  function handleDelete(id: number) {
+    setDeleteItemId(id)
+  }
+
+  function confirmDelete() {
+    if (deleteItemId !== null) onDeleteItem(deleteItemId)
+    setDeleteItemId(null)
+  }
+
+  return (
+    <>
+      <Card>
+        <CardHeader>
+          <CardTitle>Menu Items</CardTitle>
+          <CardDescription>
+            Add all items. Toggle highlights to feature them on the cafe detail
+            page.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Tabs defaultValue="all">
+            <TabsList className="mb-4">
+              <TabsTrigger value="all">All Items</TabsTrigger>
+              <TabsTrigger value="highlights">Highlights</TabsTrigger>
+              <TabsTrigger value="by-category">By Category</TabsTrigger>
+            </TabsList>
+
+            {/* Toolbar */}
+            <div className="flex items-center justify-between mb-4">
+              <p className="text-sm text-muted-foreground">
+                {items.length} items · {highlightCount} highlights
+              </p>
+              <Button
+                size="sm"
+                onClick={() => setAddItemOpen(true)}
+              >
+                <Plus />
+                Add Item
+              </Button>
+            </div>
+
+            {/* All Items */}
+            <TabsContent value="all">
+              {items.map((item) => (
+                <MenuItemRow
+                  key={item.id}
+                  item={item}
+                  showCategory
+                  highlightCount={highlightCount}
+                  onToggleHighlight={onToggleHighlight}
+                  onDelete={handleDelete}
+                />
+              ))}
+            </TabsContent>
+
+            {/* Highlights */}
+            <TabsContent value="highlights">
+              {allHighlightsHaveNoImage ? (
+                <div className="flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-muted-foreground mb-3 dark:border-amber-800 dark:bg-amber-950">
+                  <Info className="size-3.5 text-amber-600 dark:text-amber-400 shrink-0" />
+                  <span className="text-amber-700 dark:text-amber-300">
+                    Highlights without photos won&apos;t show an image on the cafe
+                    detail page.
+                  </span>
+                </div>
+              ) : highlightCount < 5 ? (
+                <div className="flex items-center gap-2 rounded-lg bg-muted px-3 py-2 text-xs text-muted-foreground mb-3">
+                  <Info className="size-3.5 shrink-0" />
+                  {highlightCount} of 5 highlight slots used. Highlights appear
+                  on the cafe detail page with photos.
+                </div>
+              ) : null}
+              {highlights.map((item) => (
+                <MenuItemRow
+                  key={item.id}
+                  item={item}
+                  showCategory
+                  highlightCount={highlightCount}
+                  onToggleHighlight={onToggleHighlight}
+                  onDelete={handleDelete}
+                />
+              ))}
+            </TabsContent>
+
+            {/* By Category */}
+            <TabsContent value="by-category">
+              {byCategory.map(({ category, items: catItems }) => (
+                <div key={category.id}>
+                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide py-2 border-b">
+                    {category.name}
+                  </p>
+                  {catItems.map((item) => (
+                    <MenuItemRow
+                      key={item.id}
+                      item={item}
+                      showCategory={false}
+                      highlightCount={highlightCount}
+                      onToggleHighlight={onToggleHighlight}
+                      onDelete={handleDelete}
+                    />
+                  ))}
+                </div>
+              ))}
+            </TabsContent>
+          </Tabs>
+        </CardContent>
+      </Card>
+
+      <AddItemDialog
+        open={addItemOpen}
+        onOpenChange={setAddItemOpen}
+        highlightCount={highlightCount}
+        categories={categories}
+      />
+
+      <AlertDialog
+        open={deleteItemId !== null}
+        onOpenChange={(open) => { if (!open) setDeleteItemId(null) }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete item?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently remove the item. This cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction variant="destructive" onClick={confirmDelete}>
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
   )
 }
 
@@ -172,29 +792,24 @@ export function CafeEditorForm({ mode, id }: CafeEditorFormProps) {
     })
   }
 
-  // --- Menu highlights ---
-  const [menuItems, setMenuItems] = React.useState<MenuItem[]>([
-    { id: 1, name: "", price: "" },
-    { id: 2, name: "", price: "" },
-  ])
-  const nextId = React.useRef(3)
+  // --- Menu ---
+  const [menuCategories, setMenuCategories] = React.useState<MenuCategory[]>(SEED_CATEGORIES)
+  const [menuItems, setMenuItems] = React.useState<FullMenuItem[]>(SEED_ITEMS)
 
-  function addMenuItem() {
-    if (menuItems.length >= 5) return
-    setMenuItems((prev) => [
-      ...prev,
-      { id: nextId.current++, name: "", price: "" },
-    ])
-  }
-
-  function removeMenuItem(id: number) {
-    setMenuItems((prev) => prev.filter((item) => item.id !== id))
-  }
-
-  function updateMenuItem(id: number, field: "name" | "price", value: string) {
+  function handleToggleHighlight(itemId: number, val: boolean) {
     setMenuItems((prev) =>
-      prev.map((item) => (item.id === id ? { ...item, [field]: value } : item))
+      prev.map((item) =>
+        item.id === itemId ? { ...item, isHighlight: val } : item
+      )
     )
+  }
+
+  function handleDeleteItem(itemId: number) {
+    setMenuItems((prev) => prev.filter((item) => item.id !== itemId))
+  }
+
+  function handleDeleteCategory(catId: number) {
+    setMenuCategories((prev) => prev.filter((cat) => cat.id !== catId))
   }
 
   // --- Sidebar ---
@@ -473,80 +1088,17 @@ export function CafeEditorForm({ mode, id }: CafeEditorFormProps) {
               </CardContent>
             </Card>
 
-            {/* CARD 6 — Menu Highlights */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Menu Highlights</CardTitle>
-                <CardDescription>Up to 5 featured items</CardDescription>
-              </CardHeader>
-              <CardContent>
-                {menuItems.map((item) => (
-                  <div
-                    key={item.id}
-                    className="flex items-center gap-3 py-3 border-b last:border-0"
-                  >
-                    <DotsSixVertical className="text-muted-foreground size-4 cursor-grab shrink-0" />
-                    <div className="size-10 rounded-md bg-muted shrink-0" />
-                    <div className="flex flex-col flex-1">
-                      <Input
-                        placeholder="Item name"
-                        className="text-sm"
-                        value={item.name}
-                        onChange={(e) =>
-                          updateMenuItem(item.id, "name", e.target.value)
-                        }
-                      />
-                      <Input
-                        placeholder="₱0.00"
-                        className="mt-1 w-32 text-sm"
-                        value={item.price}
-                        onChange={(e) =>
-                          updateMenuItem(item.id, "price", e.target.value)
-                        }
-                      />
-                    </div>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="text-destructive hover:text-destructive"
-                      onClick={() => removeMenuItem(item.id)}
-                    >
-                      <Trash />
-                    </Button>
-                  </div>
-                ))}
-
-                <div className="mt-3">
-                  {menuItems.length >= 5 ? (
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <span className="inline-block">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            disabled
-                            className="pointer-events-none"
-                          >
-                            <Plus />
-                            Add Item
-                          </Button>
-                        </span>
-                      </TooltipTrigger>
-                      <TooltipContent>Max 5 items</TooltipContent>
-                    </Tooltip>
-                  ) : (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={addMenuItem}
-                    >
-                      <Plus />
-                      Add Item
-                    </Button>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
+            {/* CARDS 6A + 6B — Menu Categories + Menu Items */}
+            <MenuCategoriesCard
+              categories={menuCategories}
+              onDeleteCategory={handleDeleteCategory}
+            />
+            <MenuItemsCard
+              items={menuItems}
+              categories={menuCategories}
+              onToggleHighlight={handleToggleHighlight}
+              onDeleteItem={handleDeleteItem}
+            />
 
             {/* CARD 7 — Social Links */}
             <Card>
