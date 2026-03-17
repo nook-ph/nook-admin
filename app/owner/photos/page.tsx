@@ -48,7 +48,7 @@ export default function OwnerPhotosPage() {
 
   return (
     <>
-      <div className="w-full mx-auto px-6 py-8 space-y-6">
+      <div className="w-full max-w-6xl mx-auto px-4 py-6 sm:px-6 sm:py-8 space-y-6">
 
         {/* Page Header */}
         <div>
@@ -92,10 +92,10 @@ export default function OwnerPhotosPage() {
             </div>
           </CardHeader>
           <CardContent>
-            <div className="flex flex-row gap-4 items-start">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
 
               {/* Hero preview */}
-              <div className="relative w-48 shrink-0">
+              <div className="relative w-full sm:w-48 sm:shrink-0">
                 <div className="aspect-video w-full bg-muted rounded-lg flex flex-col items-center justify-center gap-2 text-muted-foreground border-2 border-dashed border-primary/30">
                   <Image size={32} />
                   <p className="text-xs">Hero photo</p>
@@ -262,14 +262,14 @@ export default function OwnerPhotosPage() {
         </Card>
 
         {/* Phase 3 Upgrade Callout */}
-        <div className="flex items-center justify-between rounded-lg border px-4 py-3">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between rounded-lg border px-4 py-3">
           <div className="flex flex-col gap-0.5">
             <p className="text-sm font-medium">Want more photos?</p>
             <p className="text-xs text-muted-foreground">
               Unlimited photos available in Phase 3 with a Premium listing.
             </p>
           </div>
-          <Badge variant="outline">Phase 3</Badge>
+          <Badge variant="outline" className="self-start sm:self-auto">Phase 3</Badge>
         </div>
       </div>
 

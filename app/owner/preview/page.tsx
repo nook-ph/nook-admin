@@ -37,19 +37,20 @@ const AMENITIES = [
 
 export default function OwnerPreviewPage() {
   return (
-    <div className="flex flex-col h-full">
+    <div className=" w-full max-w-6xl mx-auto flex flex-col h-full">
 
       {/* Toolbar */}
-      <div className="border-b bg-background px-6 py-3 flex items-center justify-between sticky top-0 z-10">
-        <div className="flex flex-row items-center gap-3">
+      <div className="border-b bg-background px-4 py-3 sm:px-6 flex flex-wrap items-center justify-between gap-2 sticky top-0 z-10">
+        <div className="flex flex-row items-center gap-2 sm:gap-3">
           <Button variant="ghost" size="sm" asChild>
             <Link href="/owner/dashboard">
               <ArrowLeft size={16} />
-              Back to dashboard
+              <span className="hidden sm:inline">Back to dashboard</span>
+              <span className="sm:hidden">Back</span>
             </Link>
           </Button>
-          <Separator orientation="vertical" className="h-5" />
-          <p className="text-sm text-muted-foreground">
+          <Separator orientation="vertical" className="h-5 hidden sm:block" />
+          <p className="text-sm text-muted-foreground hidden sm:block">
             Preview — Slowpoke Coffee
           </p>
         </div>

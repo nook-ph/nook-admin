@@ -196,16 +196,16 @@ const neverLoggedInCount = OWNERS.filter(
 
 export default function OwnersPage() {
   return (
-    <div className="flex flex-col gap-6 px-4 py-6 lg:px-6">
+    <div className="w-full max-w-6xl mx-auto flex flex-col gap-6 px-4 py-6 lg:px-6">
       {/* Section 1 — Page header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-xl font-semibold">Owners</h1>
           <p className="text-muted-foreground text-sm">
             Cafe owners with portal access
           </p>
         </div>
-        <Button asChild>
+        <Button asChild className="w-full sm:w-auto">
           <Link href="/admin/owners/new">
             <IdentificationBadge />
             Create Owner Account
@@ -221,7 +221,7 @@ export default function OwnersPage() {
         </div>
 
         <Select>
-          <SelectTrigger className="w-[180px]">
+          <SelectTrigger className="w-full sm:w-[180px]">
             <SelectValue placeholder="Login Status" />
           </SelectTrigger>
           <SelectContent>
@@ -232,7 +232,7 @@ export default function OwnersPage() {
         </Select>
 
         <Select>
-          <SelectTrigger className="w-[200px]">
+          <SelectTrigger className="w-full sm:w-[200px]">
             <SelectValue placeholder="Sort" />
           </SelectTrigger>
           <SelectContent>
@@ -260,6 +260,7 @@ export default function OwnersPage() {
       )}
 
       {/* Section 3 — Owners table */}
+      <div className="overflow-x-auto">
       <Table>
         <TableHeader>
           <TableRow>
@@ -310,6 +311,7 @@ export default function OwnersPage() {
           ))}
         </TableBody>
       </Table>
+      </div>
     </div>
   )
 }

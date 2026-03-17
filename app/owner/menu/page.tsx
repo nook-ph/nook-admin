@@ -247,10 +247,10 @@ export default function OwnerMenuPage() {
 
   return (
     <>
-      <div className="w-full mx-auto px-6 py-8 space-y-6">
+      <div className="w-full max-w-6xl mx-auto px-4 py-6 sm:px-6 sm:py-8 space-y-6">
 
         {/* Page Header */}
-        <div className="flex flex-row items-center justify-between">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex flex-col gap-0.5">
             <h1 className="text-2xl font-semibold">Menu</h1>
             <p className="text-sm text-muted-foreground">
@@ -258,7 +258,7 @@ export default function OwnerMenuPage() {
               page
             </p>
           </div>
-          <Button variant="default" size="sm" onClick={() => setAddItemOpen(true)}>
+          <Button variant="default" size="sm" className="w-full sm:w-auto" onClick={() => setAddItemOpen(true)}>
             <Plus className="size-4" />
             Add Item
           </Button>
@@ -267,7 +267,7 @@ export default function OwnerMenuPage() {
         {/* Highlight Summary Card */}
         <Card>
           <CardContent className="pt-5 pb-5">
-            <div className="flex flex-row items-center justify-between">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div className="flex flex-col gap-0.5">
                 <p className="text-sm font-medium">Menu highlights</p>
                 <p className="text-xs text-muted-foreground">

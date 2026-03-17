@@ -82,10 +82,10 @@ export default function OwnerProfilePage() {
 
   return (
     <>
-      <div className="w-full mx-auto px-6 py-8 space-y-6">
+      <div className="w-full max-w-6xl mx-auto px-4 py-6 sm:px-6 sm:py-8 space-y-6">
 
         {/* Page Header */}
-        <div className="flex flex-row items-center justify-between mb-2">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-2">
           <div>
             <h1 className="text-2xl font-semibold">Edit Listing</h1>
             <p className="text-sm text-muted-foreground">Update your cafe details</p>
@@ -93,6 +93,7 @@ export default function OwnerProfilePage() {
           <Button
             variant="default"
             size="sm"
+            className="w-full sm:w-auto"
             onClick={handleSave}
             disabled={!isDirty}
           >
@@ -169,14 +170,14 @@ export default function OwnerProfilePage() {
             {DAYS.map(({ key, label }) => (
               <div
                 key={key}
-                className="flex items-center gap-4 py-3 border-b last:border-0"
+                className="flex flex-col gap-2 py-3 border-b last:border-0 sm:flex-row sm:items-center sm:gap-4"
               >
-                <span className="text-sm font-medium w-28 shrink-0">{label}</span>
+                <span className="text-sm font-medium sm:w-28 sm:shrink-0">{label}</span>
 
                 <div className="flex flex-row items-center gap-2 flex-1">
                   <Input
                     type="time"
-                    className="w-32"
+                    className="flex-1 sm:w-32 sm:flex-none"
                     value={hours[key].open}
                     disabled={hours[key].closed}
                     onChange={(e) => updateHours(key, "open", e.target.value)}
@@ -184,14 +185,24 @@ export default function OwnerProfilePage() {
                   <span className="text-xs text-muted-foreground">to</span>
                   <Input
                     type="time"
-                    className="w-32"
+                    className="flex-1 sm:w-32 sm:flex-none"
                     value={hours[key].close}
                     disabled={hours[key].closed}
                     onChange={(e) => updateHours(key, "close", e.target.value)}
                   />
+                  <div className="flex items-center gap-2 sm:hidden ml-auto">
+                    <Switch
+                      checked={hours[key].closed}
+                      onCheckedChange={(v) => {
+                        updateHours(key, "closed", v)
+                        setIsDirty(true)
+                      }}
+                    />
+                    <Label className="text-xs text-muted-foreground">Closed</Label>
+                  </div>
                 </div>
 
-                <div className="flex items-center gap-2 ml-auto">
+                <div className="hidden sm:flex items-center gap-2 ml-auto">
                   <Switch
                     checked={hours[key].closed}
                     onCheckedChange={(v) => {
@@ -347,15 +358,15 @@ export default function OwnerProfilePage() {
 
       {/* Sticky Save Bar */}
       {isDirty && (
-        <div className="fixed bottom-0 left-0 right-0 border-t bg-background/95 backdrop-blur px-6 py-4 flex items-center justify-between z-50">
+        <div className="fixed bottom-0 left-0 right-0 border-t bg-background/95 backdrop-blur px-4 py-3 sm:px-6 sm:py-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between z-50">
           <p className="text-sm text-muted-foreground">
             You have unsaved changes
           </p>
           <div className="flex flex-row gap-2">
-            <Button variant="outline" onClick={() => setIsDirty(false)}>
+            <Button variant="outline" className="flex-1 sm:flex-none" onClick={() => setIsDirty(false)}>
               Discard
             </Button>
-            <Button variant="default" onClick={handleSave}>
+            <Button variant="default" className="flex-1 sm:flex-none" onClick={handleSave}>
               <FloppyDisk className="size-4" />
               Save Changes
             </Button>

@@ -172,7 +172,7 @@ export default function OwnerReviewsPage() {
 
   return (
     <>
-      <div className="w-full mx-auto px-6 py-8 space-y-6">
+      <div className="w-full max-w-6xl mx-auto px-4 py-6 sm:px-6 sm:py-8 space-y-6">
 
         {/* Page Header */}
         <div>
@@ -197,10 +197,10 @@ export default function OwnerReviewsPage() {
         {/* Summary Card */}
         <Card>
           <CardContent className="pt-5 pb-5">
-            <div className="flex flex-row items-center gap-6">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:gap-6">
 
               {/* Overall rating */}
-              <div className="flex flex-col items-center gap-1 shrink-0">
+              <div className="flex flex-row items-center gap-4 sm:flex-col sm:items-center sm:gap-1 sm:shrink-0">
                 <span className="text-4xl font-bold">4.9</span>
                 <div className="flex flex-row gap-0.5">
                   {Array.from({ length: 5 }).map((_, i) => (
@@ -215,7 +215,7 @@ export default function OwnerReviewsPage() {
                 <span className="text-sm text-muted-foreground">32 reviews</span>
               </div>
 
-              <Separator orientation="vertical" className="h-20" />
+              <Separator orientation="vertical" className="h-20 hidden sm:block" />
 
               {/* Breakdown */}
               <div className="flex-1 space-y-1.5">

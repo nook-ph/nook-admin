@@ -162,7 +162,7 @@ function AddTagDialog() {
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button>
+        <Button className="w-full sm:w-auto">
           <Plus />
           Add Tag
         </Button>
@@ -220,16 +220,18 @@ function AddTagDialog() {
 
 export default function TagsPage() {
   return (
-    <div className="flex flex-col gap-6 px-4 py-6 lg:px-6">
+    <div className="w-full max-w-6xl mx-auto flex flex-col gap-6 px-4 py-6 lg:px-6">
       {/* Section 1 — Page header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-xl font-semibold">Tags</h1>
           <p className="text-muted-foreground text-sm">
             Master tag list — all tags used across the app
           </p>
         </div>
-        <AddTagDialog />
+        <div className="w-full sm:w-auto">
+          <AddTagDialog />
+        </div>
       </div>
 
       {/* Section 2 — Tag categories */}

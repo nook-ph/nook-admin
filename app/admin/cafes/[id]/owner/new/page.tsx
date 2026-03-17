@@ -91,7 +91,7 @@ export default function CreateOwnerAccountPage() {
   }
 
   return (
-    <div className="max-w-lg mx-auto px-6 py-8">
+    <div className="max-w-6xl w-full mx-auto px-6 py-8">
       {/* Page header */}
       <div className="flex items-center gap-4 mb-8">
         <Button variant="ghost" size="icon" asChild>

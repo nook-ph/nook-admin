@@ -265,9 +265,9 @@ function UserActions({ user }: { user: AppUser }) {
 
 export default function UsersPage() {
   return (
-    <div className="flex flex-col gap-6 px-4 py-6 lg:px-6">
+    <div className="w-full max-w-6xl mx-auto flex flex-col gap-6 px-4 py-6 lg:px-6">
       {/* Section 1 — Page header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-xl font-semibold">Users</h1>
           <p className="text-muted-foreground text-sm">
@@ -284,7 +284,7 @@ export default function UsersPage() {
         </div>
 
         <Select>
-          <SelectTrigger className="w-[160px]">
+          <SelectTrigger className="w-full sm:w-[160px]">
             <SelectValue placeholder="Status" />
           </SelectTrigger>
           <SelectContent>
@@ -295,7 +295,7 @@ export default function UsersPage() {
         </Select>
 
         <Select>
-          <SelectTrigger className="w-[180px]">
+          <SelectTrigger className="w-full sm:w-[180px]">
             <SelectValue placeholder="Sort" />
           </SelectTrigger>
           <SelectContent>
@@ -307,6 +307,7 @@ export default function UsersPage() {
       </div>
 
       {/* Section 3 — Users table */}
+      <div className="overflow-x-auto">
       <Table>
         <TableHeader>
           <TableRow>
@@ -356,6 +357,7 @@ export default function UsersPage() {
           ))}
         </TableBody>
       </Table>
+      </div>
     </div>
   )
 }

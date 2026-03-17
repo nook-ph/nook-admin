@@ -83,7 +83,7 @@ function StarRating({ rating }: { rating: number }) {
 
 export default function OwnerDashboardPage() {
   return (
-    <div className="w-full mx-auto px-6 py-8 space-y-6">
+    <div className="w-full max-w-6xl mx-auto px-6 py-8 space-y-6">
 
       {/* Section 1 — Listing Status Banner */}
       <div className="flex items-center gap-3 rounded-lg border border-green-200 bg-green-50 px-4 py-3 dark:border-green-800 dark:bg-green-950">

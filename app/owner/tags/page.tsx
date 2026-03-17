@@ -122,10 +122,10 @@ export default function OwnerTagsPage() {
 
   return (
     <>
-      <div className="w-full mx-auto px-6 py-8 space-y-6">
+      <div className="w-full max-w-6xl mx-auto px-4 py-6 sm:px-6 sm:py-8 space-y-6">
 
         {/* Page Header */}
-        <div className="flex flex-row items-center justify-between">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex flex-col gap-0.5">
             <h1 className="text-2xl font-semibold">Tags</h1>
             <p className="text-sm text-muted-foreground">
@@ -136,6 +136,7 @@ export default function OwnerTagsPage() {
           <Button
             variant="default"
             size="sm"
+            className="w-full sm:w-auto"
             disabled={!isDirty}
             onClick={handleSave}
           >
@@ -248,7 +249,7 @@ export default function OwnerTagsPage() {
         </Card>
 
         {/* Vibe Tags — Phase 2 Callout */}
-        <div className="flex items-center justify-between rounded-lg border border-dashed px-4 py-3">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between rounded-lg border border-dashed px-4 py-3">
           <div className="flex flex-col gap-0.5">
             <p className="text-sm font-medium">Vibe tags</p>
             <p className="text-xs text-muted-foreground">
@@ -256,7 +257,7 @@ export default function OwnerTagsPage() {
               coming in Phase 2.
             </p>
           </div>
-          <Badge variant="outline">Phase 2</Badge>
+          <Badge variant="outline" className="self-start sm:self-auto">Phase 2</Badge>
         </div>
 
         {isDirty && <div className="h-20" />}
@@ -264,15 +265,15 @@ export default function OwnerTagsPage() {
 
       {/* Sticky Save Bar */}
       {isDirty && (
-        <div className="fixed bottom-0 left-0 right-0 border-t bg-background/95 backdrop-blur px-6 py-4 flex items-center justify-between z-50">
+        <div className="fixed bottom-0 left-0 right-0 border-t bg-background/95 backdrop-blur px-4 py-3 sm:px-6 sm:py-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between z-50">
           <p className="text-sm text-muted-foreground">
             You have unsaved changes
           </p>
           <div className="flex flex-row gap-2">
-            <Button variant="outline" onClick={() => setIsDirty(false)}>
+            <Button variant="outline" className="flex-1 sm:flex-none" onClick={() => setIsDirty(false)}>
               Discard
             </Button>
-            <Button variant="default" onClick={handleSave}>
+            <Button variant="default" className="flex-1 sm:flex-none" onClick={handleSave}>
               <FloppyDisk className="size-4" />
               Save Changes
             </Button>

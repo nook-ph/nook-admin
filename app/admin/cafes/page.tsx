@@ -235,7 +235,7 @@ function CafeActions({ cafe }: { cafe: Cafe }) {
 
 export default function CafesPage() {
   return (
-    <div className="flex flex-col gap-6 px-4 py-6 lg:px-6">
+    <div className="w-full max-w-6xl mx-auto flex flex-col gap-6 px-4 py-6 lg:px-6">
       {/* Section 1 — Page header */}
       <div className="flex items-center justify-between">
         <div>
