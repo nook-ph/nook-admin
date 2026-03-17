@@ -131,7 +131,7 @@ export async function getCafeForOwner(ownerUserId: string) {
       )
     `)
     .eq("owner_id", ownerUserId)
-    .single()
+    .maybeSingle()
 
   if (error) throw error
   return data

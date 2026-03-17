@@ -1,5 +1,15 @@
 import { redirect } from "next/navigation"
+import { createClient } from "@/lib/supabase/server"
 
-export default function RootPage() {
-  redirect("/superadmin/dashboard")
+export default async function RootPage() {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+
+  if (!user) redirect("/login")
+
+  const role = user.app_metadata?.role
+  if (role === "superadmin") redirect("/admin/dashboard")
+  if (role === "cafe_owner") redirect("/owner/dashboard")
+
+  redirect("/login")
 }

@@ -36,25 +36,27 @@ export async function createOwnerAccount(payload: {
   cafe_id: string
 }) {
   const supabase = createAdminClient()
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000"
 
-  const tempPassword = Array.from(
-    crypto.getRandomValues(new Uint8Array(9))
-  ).map(b => b.toString(36)).join("").slice(0, 12)
-
-  const { data: { user }, error: authError } =
-    await supabase.auth.admin.createUser({
-      email: payload.email,
-      password: tempPassword,
-      app_metadata: { role: "cafe_owner" },
-      user_metadata: {
+  // inviteUserByEmail creates the account AND sends the invite email in one step
+  const { data: { user }, error: inviteError } =
+    await supabase.auth.admin.inviteUserByEmail(payload.email, {
+      data: {
         full_name: payload.full_name,
         password_changed: false,
       },
-      email_confirm: true,
+      redirectTo: `${siteUrl}/login/reset-password`,
     })
 
-  if (authError) throw authError
+  if (inviteError) throw inviteError
   if (!user) throw new Error("User creation failed")
+
+  // Set role in app_metadata (inviteUserByEmail only sets user_metadata)
+  const { error: updateError } = await supabase.auth.admin.updateUserById(
+    user.id,
+    { app_metadata: { role: "cafe_owner" } }
+  )
+  if (updateError) throw updateError
 
   const { error: linkError } = await supabase
     .from("cafe_owner_cafe")
@@ -66,7 +68,7 @@ export async function createOwnerAccount(payload: {
 
   if (linkError) throw linkError
 
-  return { userId: user.id, tempPassword }
+  return { userId: user.id }
 }
 
 export async function resendCredentials(ownerId: string) {
@@ -75,9 +77,11 @@ export async function resendCredentials(ownerId: string) {
     await supabase.auth.admin.getUserById(ownerId)
   if (!user?.email) throw new Error("Owner not found")
 
-  const { error } = await supabase.auth.resetPasswordForEmail(
-    user.email
-  )
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000"
+
+  const { error } = await supabase.auth.resetPasswordForEmail(user.email, {
+    redirectTo: `${siteUrl}/login/reset-password`,
+  })
   if (error) throw error
 }
 

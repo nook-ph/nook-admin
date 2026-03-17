@@ -16,7 +16,7 @@ async function getOwnerCafeId(): Promise<string> {
     .from("cafe_owner_cafe")
     .select("cafe_id")
     .eq("owner_id", user.id)
-    .single()
+    .maybeSingle()
 
   if (!data) throw new Error("No cafe linked to this owner")
   return data.cafe_id
