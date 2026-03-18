@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache"
 import { redirect } from "next/navigation"
 import { createCafe, updateCafe, type Cafe } from "@/lib/queries/cafes"
 import { setCafeTags } from "@/lib/queries/tags"
-import { upsertMenuItem, deleteMenuItem } from "@/lib/queries/menu"
+import { upsertMenuItem, deleteMenuItem, createMenuCategory } from "@/lib/queries/menu"
 
 export async function createCafeAction(payload: {
   name: string
@@ -63,8 +63,23 @@ export async function upsertMenuItemAction(item: {
   is_highlight: boolean
   image_url?: string | null
 }) {
-  await upsertMenuItem(item)
+  const data = await upsertMenuItem(item)
   revalidatePath(`/admin/cafes/${item.cafe_id}/edit`)
+  return { id: data.id as string }
+}
+
+export async function createMenuCategoryAction(category: {
+  name: string
+  is_global: boolean
+  cafeId: string | null
+}) {
+  const data = await createMenuCategory({
+    name: category.name,
+    is_global: category.is_global,
+    created_by: category.is_global ? null : category.cafeId,
+  })
+  if (category.cafeId) revalidatePath(`/admin/cafes/${category.cafeId}/edit`)
+  return { id: data.id, name: data.name, is_global: data.is_global }
 }
 
 export async function deleteMenuItemAction(id: string, cafeId: string) {

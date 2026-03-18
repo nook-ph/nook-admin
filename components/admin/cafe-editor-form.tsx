@@ -78,7 +78,15 @@ import {
   updateCafeAction,
   upsertMenuItemAction,
   deleteMenuItemAction,
+  createMenuCategoryAction,
 } from "@/app/admin/cafes/editor-actions"
+import {
+  uploadCafeHeroAction,
+  uploadCafePhotoAction,
+  deleteCafePhotoAction,
+  uploadMenuItemImageAction,
+  deleteMenuItemImageAction,
+} from "@/app/actions/upload"
 
 // ---------------------------------------------------------------------------
 // Types
@@ -122,7 +130,7 @@ interface LocalMenuItem {
   categoryId: string
   price: number
   isHighlight: boolean
-  hasImage: boolean
+  imageUrl: string | null
 }
 
 // ---------------------------------------------------------------------------
@@ -200,6 +208,10 @@ interface MenuItemRowProps {
   highlightCount: number
   onToggleHighlight: (id: string, val: boolean) => void
   onDelete: (id: string) => void
+  onImageUpload: (id: string, file: File) => void
+  onImageDelete: (id: string, imageUrl: string) => void
+  isUploadingImage?: boolean
+  disableImageUpload?: boolean
   disabled?: boolean
 }
 
@@ -209,9 +221,21 @@ function MenuItemRow({
   highlightCount,
   onToggleHighlight,
   onDelete,
+  onImageUpload,
+  onImageDelete,
+  isUploadingImage = false,
+  disableImageUpload = false,
   disabled = false,
 }: MenuItemRowProps) {
+  const inputRef = React.useRef<HTMLInputElement>(null)
   const atHighlightCap = highlightCount >= 5 && !item.isHighlight
+
+  function handleFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    onImageUpload(item.id, file)
+    e.target.value = ""
+  }
 
   return (
     <div className="flex items-center gap-3 py-3 border-b last:border-0">
@@ -224,10 +248,34 @@ function MenuItemRow({
 
       {/* Col 2 — image cell */}
       {item.isHighlight ? (
-        item.hasImage ? (
-          <div className="size-10 rounded-md bg-muted shrink-0" />
+        item.imageUrl ? (
+          <div className="relative size-10 rounded-md bg-muted shrink-0 overflow-hidden group/img">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={item.imageUrl} alt={item.name} className="w-full h-full object-cover" />
+            <button
+              type="button"
+              className="absolute inset-0 bg-black/50 opacity-0 group-hover/img:opacity-100 transition-opacity flex items-center justify-center"
+              onClick={() => onImageDelete(item.id, item.imageUrl!)}
+              disabled={isUploadingImage || disabled}
+              title="Remove image"
+            >
+              <Trash className="size-3 text-white" />
+            </button>
+          </div>
         ) : (
-          <ImageUploadCell disabled={disabled} />
+          <>
+            <input
+              ref={inputRef}
+              type="file"
+              accept="image/jpeg,image/png,image/webp"
+              className="hidden"
+              onChange={handleFileSelect}
+            />
+            <ImageUploadCell
+              disabled={disabled || isUploadingImage || disableImageUpload}
+              onClick={() => inputRef.current?.click()}
+            />
+          </>
         )
       ) : (
         <div className="size-10 shrink-0" />
@@ -302,23 +350,44 @@ function MenuItemRow({
 function AddCategoryDialog({
   open,
   onOpenChange,
+  cafeId,
+  onCategoryAdded,
 }: {
   open: boolean
   onOpenChange: (v: boolean) => void
+  cafeId?: string
+  onCategoryAdded: (cat: LocalMenuCategory) => void
 }) {
   const [name, setName] = React.useState("")
   const [isGlobal, setIsGlobal] = React.useState(false)
+  const [saving, setSaving] = React.useState(false)
+  const [error, setError] = React.useState("")
 
-  function handleAdd() {
-    console.log("Category added")
-    setName("")
-    setIsGlobal(false)
-    onOpenChange(false)
+  async function handleAdd() {
+    if (!name.trim()) return
+    setSaving(true)
+    setError("")
+    try {
+      const data = await createMenuCategoryAction({
+        name: name.trim(),
+        is_global: isGlobal,
+        cafeId: cafeId ?? null,
+      })
+      onCategoryAdded({ id: data.id, name: data.name, isGlobal: data.is_global })
+      setName("")
+      setIsGlobal(false)
+      onOpenChange(false)
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Failed to add category")
+    } finally {
+      setSaving(false)
+    }
   }
 
   function handleCancel() {
     setName("")
     setIsGlobal(false)
+    setError("")
     onOpenChange(false)
   }
 
@@ -350,11 +419,16 @@ function AddCategoryDialog({
             </label>
           </div>
         </div>
+        {error && (
+          <p className="text-sm text-destructive">{error}</p>
+        )}
         <DialogFooter>
-          <Button variant="outline" onClick={handleCancel}>
+          <Button variant="outline" onClick={handleCancel} disabled={saving}>
             Cancel
           </Button>
-          <Button onClick={handleAdd}>Add Category</Button>
+          <Button onClick={handleAdd} disabled={saving || !name.trim()}>
+            {saving ? "Adding..." : "Add Category"}
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
@@ -413,7 +487,7 @@ function AddItemDialog({
           categoryId,
           price: priceNum,
           isHighlight,
-          hasImage: false,
+          imageUrl: null,
         })
       } finally {
         setSaving(false)
@@ -427,7 +501,7 @@ function AddItemDialog({
         categoryId,
         price: priceNum,
         isHighlight,
-        hasImage: false,
+        imageUrl: null,
       })
     }
 
@@ -532,10 +606,14 @@ function AddItemDialog({
 
 function MenuCategoriesCard({
   categories,
+  cafeId,
+  onCategoryAdded,
   onDeleteCategory,
   disabled = false,
 }: {
   categories: LocalMenuCategory[]
+  cafeId?: string
+  onCategoryAdded: (cat: LocalMenuCategory) => void
   onDeleteCategory: (id: string) => void
   disabled?: boolean
 }) {
@@ -601,6 +679,8 @@ function MenuCategoriesCard({
       <AddCategoryDialog
         open={addCategoryOpen}
         onOpenChange={setAddCategoryOpen}
+        cafeId={cafeId}
+        onCategoryAdded={onCategoryAdded}
       />
 
       <AlertDialog
@@ -640,6 +720,8 @@ function MenuItemsCard({
   onToggleHighlight,
   onDeleteItem,
   onItemAdded,
+  onImageUploaded,
+  onImageDeleted,
   disabled = false,
 }: {
   items: LocalMenuItem[]
@@ -648,14 +730,51 @@ function MenuItemsCard({
   onToggleHighlight: (id: string, val: boolean) => void
   onDeleteItem: (id: string) => void
   onItemAdded: (item: LocalMenuItem) => void
+  onImageUploaded: (id: string, url: string) => void
+  onImageDeleted: (id: string) => void
   disabled?: boolean
 }) {
   const [addItemOpen, setAddItemOpen] = React.useState(false)
   const [deleteItemId, setDeleteItemId] = React.useState<string | null>(null)
+  const [uploadingItemId, setUploadingItemId] = React.useState<string | null>(null)
+  const [uploadError, setUploadError] = React.useState("")
+
+  async function handleImageUpload(id: string, file: File) {
+    if (!cafeId) return
+    const formData = new FormData()
+    formData.append("file", file)
+    setUploadingItemId(id)
+    setUploadError("")
+    try {
+      const { url } = await uploadMenuItemImageAction(formData, id, cafeId)
+      onImageUploaded(id, url)
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Upload failed"
+      setUploadError(msg)
+      setTimeout(() => setUploadError(""), 4000)
+    } finally {
+      setUploadingItemId(null)
+    }
+  }
+
+  async function handleImageDelete(id: string, imageUrl: string) {
+    if (!cafeId) return
+    setUploadingItemId(id)
+    try {
+      await deleteMenuItemImageAction(id, imageUrl, cafeId)
+      onImageDeleted(id)
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Delete failed"
+      setUploadError(msg)
+      setTimeout(() => setUploadError(""), 4000)
+    } finally {
+      setUploadingItemId(null)
+    }
+  }
 
   const highlights = items.filter((i) => i.isHighlight)
   const highlightCount = highlights.length
-  const allHighlightsHaveNoImage = highlights.length > 0 && highlights.every((i) => !i.hasImage)
+  const allHighlightsHaveNoImage = highlights.length > 0 && highlights.every((i) => !i.imageUrl)
 
   const byCategory = categories
     .map((cat) => ({
@@ -706,6 +825,13 @@ function MenuItemsCard({
               </Button>
             </div>
 
+            {!cafeId && (
+              <div className="flex items-center gap-2 rounded-lg bg-muted px-3 py-2 text-xs text-muted-foreground mb-3">
+                <Info className="size-3.5 shrink-0" />
+                Save the cafe first to enable highlight image uploads.
+              </div>
+            )}
+
             {/* All Items */}
             <TabsContent value="all">
               {items.map((item) => (
@@ -716,6 +842,10 @@ function MenuItemsCard({
                   highlightCount={highlightCount}
                   onToggleHighlight={onToggleHighlight}
                   onDelete={handleDelete}
+                  onImageUpload={handleImageUpload}
+                  onImageDelete={handleImageDelete}
+                  isUploadingImage={uploadingItemId === item.id}
+                  disableImageUpload={!cafeId}
                   disabled={disabled}
                 />
               ))}
@@ -746,6 +876,10 @@ function MenuItemsCard({
                   highlightCount={highlightCount}
                   onToggleHighlight={onToggleHighlight}
                   onDelete={handleDelete}
+                  onImageUpload={handleImageUpload}
+                  onImageDelete={handleImageDelete}
+                  isUploadingImage={uploadingItemId === item.id}
+                  disableImageUpload={!cafeId}
                   disabled={disabled}
                 />
               ))}
@@ -766,6 +900,10 @@ function MenuItemsCard({
                       highlightCount={highlightCount}
                       onToggleHighlight={onToggleHighlight}
                       onDelete={handleDelete}
+                      onImageUpload={handleImageUpload}
+                      onImageDelete={handleImageDelete}
+                      isUploadingImage={uploadingItemId === item.id}
+                      disableImageUpload={!cafeId}
                       disabled={disabled}
                     />
                   ))}
@@ -773,6 +911,9 @@ function MenuItemsCard({
               ))}
             </TabsContent>
           </Tabs>
+          {uploadError && (
+            <p className="text-sm text-destructive mt-3">{uploadError}</p>
+          )}
         </CardContent>
       </Card>
 
@@ -886,7 +1027,7 @@ export function CafeEditorForm({
         categoryId: item.category_id,
         price: item.price,
         isHighlight: item.is_highlight,
-        hasImage: !!item.image_url,
+        imageUrl: item.image_url,
       }))
   )
 
@@ -909,8 +1050,86 @@ export function CafeEditorForm({
     setMenuCategories((prev) => prev.filter((cat) => cat.id !== catId))
   }
 
+  function handleImageUploaded(id: string, url: string) {
+    setMenuItems((prev) =>
+      prev.map((item) => (item.id === id ? { ...item, imageUrl: url } : item))
+    )
+  }
+
+  function handleImageDeleted(id: string) {
+    setMenuItems((prev) =>
+      prev.map((item) => (item.id === id ? { ...item, imageUrl: null } : item))
+    )
+  }
+
   function handleItemAdded(item: LocalMenuItem) {
     setMenuItems((prev) => [...prev, item])
+  }
+
+  // --- Photos ---
+  const [heroUrl, setHeroUrl] = React.useState<string | null>(
+    cafe?.featured_image_url ?? null
+  )
+  const [galleryUrls, setGalleryUrls] = React.useState<string[]>(
+    (cafe?.photo_urls as string[] | null) ?? []
+  )
+  const [isUploadingPhoto, setIsUploadingPhoto] = React.useState(false)
+  const [photoUploadError, setPhotoUploadError] = React.useState("")
+  const photoInputRef = React.useRef<HTMLInputElement>(null)
+
+  const allPhotos = [
+    ...(heroUrl ? [heroUrl] : []),
+    ...galleryUrls,
+  ]
+
+  async function handlePhotoFileSelect(
+    e: React.ChangeEvent<HTMLInputElement>
+  ) {
+    const file = e.target.files?.[0]
+    if (!file || !cafe?.id) return
+
+    const formData = new FormData()
+    formData.append("file", file)
+
+    setIsUploadingPhoto(true)
+    setPhotoUploadError("")
+    try {
+      if (!heroUrl) {
+        const { url } = await uploadCafeHeroAction(formData, cafe.id)
+        setHeroUrl(url)
+      } else {
+        const { url } = await uploadCafePhotoAction(formData, cafe.id)
+        setGalleryUrls((prev) => [...prev, url])
+      }
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Upload failed"
+      setPhotoUploadError(msg)
+      setTimeout(() => setPhotoUploadError(""), 4000)
+    } finally {
+      setIsUploadingPhoto(false)
+      e.target.value = ""
+    }
+  }
+
+  async function handlePhotoDelete(photoUrl: string) {
+    if (!cafe?.id) return
+    const isHero = photoUrl === heroUrl
+    setIsUploadingPhoto(true)
+    try {
+      await deleteCafePhotoAction(photoUrl, isHero, cafe.id)
+      if (isHero) {
+        setHeroUrl(galleryUrls[0] ?? null)
+        setGalleryUrls((prev) => prev.slice(1))
+      } else {
+        setGalleryUrls((prev) => prev.filter((u) => u !== photoUrl))
+      }
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Delete failed"
+      setPhotoUploadError(msg)
+      setTimeout(() => setPhotoUploadError(""), 4000)
+    } finally {
+      setIsUploadingPhoto(false)
+    }
   }
 
   // --- Sidebar ---
@@ -925,9 +1144,23 @@ export function CafeEditorForm({
 
   // --- Save ---
   const [saving, setSaving] = React.useState(false)
+  const [saveError, setSaveError] = React.useState("")
+
+  function parseSaveError(err: unknown): string {
+    if (!(err instanceof Error)) return "An unexpected error occurred"
+    // Server actions serialize Supabase errors as JSON strings
+    try {
+      const parsed = JSON.parse(err.message)
+      if (parsed?.message) return parsed.message
+    } catch {
+      // not JSON — use the raw message
+    }
+    return err.message
+  }
 
   async function handleSave() {
     setSaving(true)
+    setSaveError("")
     try {
       const payload = {
         name,
@@ -948,6 +1181,8 @@ export function CafeEditorForm({
       } else {
         await updateCafeAction(cafe!.id, payload)
       }
+    } catch (err: unknown) {
+      setSaveError(parseSaveError(err))
     } finally {
       setSaving(false)
     }
@@ -1147,62 +1382,80 @@ export function CafeEditorForm({
               <CardHeader>
                 <CardTitle>Photos</CardTitle>
                 <CardDescription>
-                  Upload up to 10 photos. First photo is the hero.
+                  Upload up to 5 photos. First photo is the hero.
+                  {!cafe?.id && (
+                    <span className="ml-1 text-amber-600 dark:text-amber-400">
+                      Save the cafe first to enable photo uploads.
+                    </span>
+                  )}
                 </CardDescription>
               </CardHeader>
               <CardContent>
+                <input
+                  ref={photoInputRef}
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp"
+                  className="hidden"
+                  onChange={handlePhotoFileSelect}
+                />
+
                 <div className="grid grid-cols-3 gap-3 sm:grid-cols-4">
                   {/* Upload button */}
-                  <div
-                    className={`aspect-square rounded-lg border-2 border-dashed border-border flex flex-col items-center justify-center gap-1 transition-colors text-muted-foreground ${
-                      disabled
-                        ? "pointer-events-none opacity-60"
-                        : "cursor-pointer hover:bg-muted"
-                    }`}
-                  >
-                    <Plus className="size-6" />
-                    <span className="text-xs">Add photo</span>
-                  </div>
-
-                  {/* Placeholder 1 — Hero */}
-                  <div className="relative aspect-square rounded-lg bg-muted overflow-hidden">
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="absolute top-1 right-1 size-6 bg-background/80 hover:bg-background"
-                      disabled={disabled}
+                  {allPhotos.length < 5 && (
+                    <div
+                      className={`aspect-square rounded-lg border-2 border-dashed border-border flex flex-col items-center justify-center gap-1 transition-colors text-muted-foreground ${
+                        disabled || !cafe?.id || isUploadingPhoto
+                          ? "pointer-events-none opacity-60"
+                          : "cursor-pointer hover:bg-muted"
+                      }`}
+                      onClick={() =>
+                        !disabled && cafe?.id && !isUploadingPhoto
+                          ? photoInputRef.current?.click()
+                          : undefined
+                      }
                     >
-                      <X className="size-3" />
-                    </Button>
-                    <Badge className="absolute bottom-1 left-1 text-xs">
-                      Hero
-                    </Badge>
-                  </div>
+                      <Plus className="size-6" />
+                      <span className="text-xs">
+                        {isUploadingPhoto ? "Uploading..." : "Add photo"}
+                      </span>
+                    </div>
+                  )}
 
-                  {/* Placeholder 2 */}
-                  <div className="relative aspect-square rounded-lg bg-muted overflow-hidden">
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="absolute top-1 right-1 size-6 bg-background/80 hover:bg-background"
-                      disabled={disabled}
+                  {/* Actual photos */}
+                  {allPhotos.map((url) => (
+                    <div
+                      key={url}
+                      className="relative aspect-square rounded-lg bg-muted overflow-hidden"
                     >
-                      <X className="size-3" />
-                    </Button>
-                  </div>
-
-                  {/* Placeholder 3 */}
-                  <div className="relative aspect-square rounded-lg bg-muted overflow-hidden">
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="absolute top-1 right-1 size-6 bg-background/80 hover:bg-background"
-                      disabled={disabled}
-                    >
-                      <X className="size-3" />
-                    </Button>
-                  </div>
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={url}
+                        alt="Cafe photo"
+                        className="w-full h-full object-cover"
+                      />
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="absolute top-1 right-1 size-6 bg-background/80 hover:bg-background"
+                        disabled={disabled || isUploadingPhoto}
+                        onClick={() => handlePhotoDelete(url)}
+                      >
+                        <X className="size-3" />
+                      </Button>
+                      {url === heroUrl && (
+                        <Badge className="absolute bottom-1 left-1 text-xs">
+                          Hero
+                        </Badge>
+                      )}
+                    </div>
+                  ))}
                 </div>
+
+                {photoUploadError && (
+                  <p className="text-sm text-destructive mt-3">
+                    {photoUploadError}
+                  </p>
+                )}
               </CardContent>
             </Card>
 
@@ -1272,6 +1525,8 @@ export function CafeEditorForm({
             {/* CARDS 6A + 6B — Menu Categories + Menu Items */}
             <MenuCategoriesCard
               categories={menuCategories}
+              cafeId={cafe?.id}
+              onCategoryAdded={(cat) => setMenuCategories((prev) => [...prev, cat])}
               onDeleteCategory={handleDeleteCategory}
               disabled={disabled}
             />
@@ -1282,6 +1537,8 @@ export function CafeEditorForm({
               onToggleHighlight={handleToggleHighlight}
               onDeleteItem={handleDeleteItem}
               onItemAdded={handleItemAdded}
+              onImageUploaded={handleImageUploaded}
+              onImageDeleted={handleImageDeleted}
               disabled={disabled}
             />
 
@@ -1466,11 +1723,21 @@ export function CafeEditorForm({
                     </Button>
                   ) : (
                     <>
+                      {saveError && (
+                        <div className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2">
+                          <p className="text-xs font-medium text-destructive mb-0.5">
+                            Save failed
+                          </p>
+                          <p className="text-xs text-destructive/80">{saveError}</p>
+                        </div>
+                      )}
                       <Button className="w-full" onClick={handleSave} disabled={saving}>
-                        {mode === "create" ? "Create Listing" : "Save & Publish"}
+                        {saving
+                          ? "Saving..."
+                          : mode === "create" ? "Create Listing" : "Save & Publish"}
                       </Button>
                       <Button variant="outline" className="w-full" onClick={handleSave} disabled={saving}>
-                        Save as Draft
+                        {saving ? "Saving..." : "Save as Draft"}
                       </Button>
                       <Separator className="my-1" />
                       {mode === "edit" && cafe?.id ? (

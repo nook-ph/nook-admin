@@ -46,6 +46,10 @@ import {
 import { Switch } from "@/components/ui/switch"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { upsertMenuItemAction, deleteMenuItemAction } from "@/app/owner/actions"
+import {
+  uploadMenuItemImageAction,
+  deleteMenuItemImageAction,
+} from "@/app/actions/upload"
 
 type Category = {
   id: string
@@ -77,6 +81,9 @@ function ItemRow({
   onToggleHighlight,
   onEdit,
   onDelete,
+  onImageUpload,
+  onImageDelete,
+  isUploadingImage,
   showMissingImageWarning,
 }: {
   item: MenuItem
@@ -84,10 +91,21 @@ function ItemRow({
   onToggleHighlight: (id: string, value: boolean) => void
   onEdit: (item: MenuItem) => void
   onDelete: (id: string) => void
+  onImageUpload: (id: string, file: File) => void
+  onImageDelete: (id: string, imageUrl: string) => void
+  isUploadingImage?: boolean
   showMissingImageWarning?: boolean
 }) {
+  const inputRef = React.useRef<HTMLInputElement>(null)
   const highlightCapReached = !item.is_highlight && highlightCount >= 5
   const categoryName = item.menu_categories?.name ?? "Uncategorized"
+
+  function handleFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    onImageUpload(item.id, file)
+    e.target.value = ""
+  }
 
   return (
     <div className="flex items-center gap-3 py-3 border-b last:border-0">
@@ -95,19 +113,42 @@ function ItemRow({
 
       {item.is_highlight ? (
         item.image_url ? (
-          <div className="size-10 rounded-md bg-muted shrink-0 flex items-center justify-center border overflow-hidden">
+          <div className="relative size-10 rounded-md bg-muted shrink-0 flex items-center justify-center border overflow-hidden group/img">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src={item.image_url} alt={item.name} className="w-full h-full object-cover" />
+            <button
+              type="button"
+              className="absolute inset-0 bg-black/50 opacity-0 group-hover/img:opacity-100 transition-opacity flex items-center justify-center"
+              onClick={() => onImageDelete(item.id, item.image_url!)}
+              disabled={isUploadingImage}
+              title="Remove image"
+            >
+              <Trash size={12} className="text-white" />
+            </button>
           </div>
         ) : (
-          <Button
-            variant="outline"
-            size="icon"
-            className="size-10 shrink-0 border-dashed"
-            onClick={() => console.log("Upload coming soon")}
-          >
-            <Plus size={16} className="text-muted-foreground" />
-          </Button>
+          <>
+            <input
+              ref={inputRef}
+              type="file"
+              accept="image/jpeg,image/png,image/webp"
+              className="hidden"
+              onChange={handleFileSelect}
+            />
+            <Button
+              variant="outline"
+              size="icon"
+              className="size-10 shrink-0 border-dashed"
+              disabled={isUploadingImage}
+              onClick={() => inputRef.current?.click()}
+              title="Upload image"
+            >
+              {isUploadingImage
+                ? <ImageSquare size={16} className="text-muted-foreground animate-pulse" />
+                : <Plus size={16} className="text-muted-foreground" />
+              }
+            </Button>
+          </>
         )
       ) : (
         <div className="size-10 shrink-0" />
@@ -177,7 +218,7 @@ function ItemRow({
 export function OwnerMenuClient({
   items: initialItems,
   categories,
-  cafeId: _cafeId,
+  cafeId,
 }: {
   items: MenuItem[]
   categories: Category[]
@@ -188,6 +229,10 @@ export function OwnerMenuClient({
   const [addCategoryOpen, setAddCategoryOpen] = React.useState(false)
   const [deleteItem, setDeleteItem] = React.useState<string | null>(null)
   const [isSaving, setIsSaving] = React.useState(false)
+  const [uploadingItemId, setUploadingItemId] = React.useState<string | null>(null)
+  const [uploadError, setUploadError] = React.useState("")
+  const [pendingImageFile, setPendingImageFile] = React.useState<File | null>(null)
+  const dialogInputRef = React.useRef<HTMLInputElement>(null)
   const [newItem, setNewItem] = React.useState<NewItem>({
     name: "", price: "", categoryId: "", is_highlight: false,
   })
@@ -238,21 +283,34 @@ export function OwnerMenuClient({
     if (!newItem.name.trim() || !newItem.categoryId) return
     setIsSaving(true)
     try {
-      await upsertMenuItemAction({
+      const isHighlight = newItem.is_highlight && highlightCount < 5
+      const { id: newId } = await upsertMenuItemAction({
         name: newItem.name,
         price: parseFloat(newItem.price) || 0,
         category_id: newItem.categoryId,
-        is_highlight: newItem.is_highlight && highlightCount < 5,
+        is_highlight: isHighlight,
         image_url: null,
       })
-      // Server will revalidate; optimistic update
+
+      let imageUrl: string | null = null
+      if (isHighlight && pendingImageFile) {
+        try {
+          const formData = new FormData()
+          formData.append("file", pendingImageFile)
+          const { url } = await uploadMenuItemImageAction(formData, newId, cafeId)
+          imageUrl = url
+        } catch {
+          // Image upload failure is non-fatal — item is still saved
+        }
+      }
+
       const category = categories.find((c) => c.id === newItem.categoryId)
       const newEntry: MenuItem = {
-        id: String(Date.now()),
+        id: newId,
         name: newItem.name,
         price: parseFloat(newItem.price) || 0,
-        is_highlight: newItem.is_highlight && highlightCount < 5,
-        image_url: null,
+        is_highlight: isHighlight,
+        image_url: imageUrl,
         category_id: newItem.categoryId,
         menu_categories: category
           ? { id: category.id, name: category.name, is_global: category.is_global }
@@ -260,9 +318,45 @@ export function OwnerMenuClient({
       }
       setItems((prev) => [...prev, newEntry])
       setNewItem({ name: "", price: "", categoryId: "", is_highlight: false })
+      setPendingImageFile(null)
       setAddItemOpen(false)
     } finally {
       setIsSaving(false)
+    }
+  }
+
+  async function handleItemImageUpload(id: string, file: File) {
+    const formData = new FormData()
+    formData.append("file", file)
+    setUploadingItemId(id)
+    setUploadError("")
+    try {
+      const { url } = await uploadMenuItemImageAction(formData, id, cafeId)
+      setItems((prev) =>
+        prev.map((i) => (i.id === id ? { ...i, image_url: url } : i))
+      )
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Upload failed"
+      setUploadError(msg)
+      setTimeout(() => setUploadError(""), 4000)
+    } finally {
+      setUploadingItemId(null)
+    }
+  }
+
+  async function handleItemImageDelete(id: string, imageUrl: string) {
+    setUploadingItemId(id)
+    try {
+      await deleteMenuItemImageAction(id, imageUrl, cafeId)
+      setItems((prev) =>
+        prev.map((i) => (i.id === id ? { ...i, image_url: null } : i))
+      )
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Delete failed"
+      setUploadError(msg)
+      setTimeout(() => setUploadError(""), 4000)
+    } finally {
+      setUploadingItemId(null)
     }
   }
 
@@ -352,6 +446,9 @@ export function OwnerMenuClient({
                       onToggleHighlight={toggleHighlight}
                       onEdit={() => {}}
                       onDelete={setDeleteItem}
+                      onImageUpload={handleItemImageUpload}
+                      onImageDelete={handleItemImageDelete}
+                      isUploadingImage={uploadingItemId === item.id}
                     />
                   ))
                 )}
@@ -359,6 +456,9 @@ export function OwnerMenuClient({
                   <p className="text-xs text-destructive py-2">
                     Maximum 5 highlights reached
                   </p>
+                )}
+                {uploadError && (
+                  <p className="text-sm text-destructive py-2">{uploadError}</p>
                 )}
               </CardContent>
             </Card>
@@ -386,6 +486,9 @@ export function OwnerMenuClient({
                       onToggleHighlight={toggleHighlight}
                       onEdit={() => {}}
                       onDelete={setDeleteItem}
+                      onImageUpload={handleItemImageUpload}
+                      onImageDelete={handleItemImageDelete}
+                      isUploadingImage={uploadingItemId === item.id}
                       showMissingImageWarning
                     />
                   ))
@@ -486,8 +589,10 @@ export function OwnerMenuClient({
         open={addItemOpen}
         onOpenChange={(open) => {
           setAddItemOpen(open)
-          if (!open)
+          if (!open) {
             setNewItem({ name: "", price: "", categoryId: "", is_highlight: false })
+            setPendingImageFile(null)
+          }
         }}
       >
         <DialogContent className="sm:max-w-md">
@@ -577,10 +682,34 @@ export function OwnerMenuClient({
             {newItem.is_highlight && highlightCount < 5 && (
               <div className="space-y-2">
                 <Label>Photo</Label>
-                <div className="h-24 w-full rounded-lg border-2 border-dashed flex flex-col items-center justify-center gap-1.5 cursor-pointer hover:bg-muted text-muted-foreground transition-colors">
-                  <UploadSimple size={20} />
-                  <span className="text-sm">Click to upload</span>
-                  <span className="text-xs">JPG, PNG, WEBP · Max 5MB</span>
+                <input
+                  ref={dialogInputRef}
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp"
+                  className="hidden"
+                  onChange={(e) => {
+                    setPendingImageFile(e.target.files?.[0] ?? null)
+                  }}
+                />
+                <div
+                  className="h-24 w-full rounded-lg border-2 border-dashed flex flex-col items-center justify-center gap-1.5 cursor-pointer hover:bg-muted text-muted-foreground transition-colors"
+                  onClick={() => dialogInputRef.current?.click()}
+                >
+                  {pendingImageFile ? (
+                    <>
+                      <ImageSquare size={20} className="text-primary" />
+                      <span className="text-sm font-medium truncate max-w-[180px]">
+                        {pendingImageFile.name}
+                      </span>
+                      <span className="text-xs">Click to change</span>
+                    </>
+                  ) : (
+                    <>
+                      <UploadSimple size={20} />
+                      <span className="text-sm">Click to upload</span>
+                      <span className="text-xs">JPG, PNG, WEBP · Max 5MB</span>
+                    </>
+                  )}
                 </div>
               </div>
             )}

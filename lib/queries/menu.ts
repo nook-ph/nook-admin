@@ -56,3 +56,19 @@ export async function deleteMenuItem(id: string) {
 
   if (error) throw error
 }
+
+export async function createMenuCategory(category: {
+  name: string
+  is_global: boolean
+  created_by: string | null
+}) {
+  const supabase = createAdminClient()
+  const { data, error } = await supabase
+    .from("menu_categories")
+    .insert(category)
+    .select()
+    .single()
+
+  if (error) throw error
+  return data as Category
+}

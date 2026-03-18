@@ -31,10 +31,13 @@ import {
   CardTitle,
 } from "@/components/ui/card"
 import { Progress } from "@/components/ui/progress"
-import { updatePhotoAction } from "@/app/owner/actions"
-import { createClient } from "@/lib/supabase/client"
+import {
+  uploadCafeHeroAction,
+  uploadCafePhotoAction,
+  deleteCafePhotoAction,
+} from "@/app/actions/upload"
 
-const TOTAL_SLOTS = 3
+const TOTAL_SLOTS = 5
 
 const TIPS = [
   "Show the interior — customers want to know what the vibe feels like before visiting",
@@ -56,6 +59,7 @@ export function OwnerPhotosClient({
   const [currentPhotoUrls, setCurrentPhotoUrls] = React.useState<string[]>(photoUrls)
   const [deleteConfirm, setDeleteConfirm] = React.useState<number | null>(null)
   const [isUploading, setIsUploading] = React.useState(false)
+  const [uploadError, setUploadError] = React.useState("")
 
   const allPhotos = [
     ...(currentHeroUrl ? [currentHeroUrl] : []),
@@ -71,40 +75,51 @@ export function OwnerPhotosClient({
     const file = e.target.files?.[0]
     if (!file) return
 
+    const formData = new FormData()
+    formData.append("file", file)
+
     setIsUploading(true)
+    setUploadError("")
     try {
-      const supabase = createClient()
-      const { data, error } = await supabase.storage
-        .from("cafe-photos")
-        .upload(`${cafeId}/${Date.now()}`, file)
-
-      if (error) throw error
-
-      const url = supabase.storage
-        .from("cafe-photos")
-        .getPublicUrl(data.path).data.publicUrl
-
-      await updatePhotoAction(url, isHero)
-
       if (isHero) {
+        const { url } = await uploadCafeHeroAction(formData, cafeId)
         setCurrentHeroUrl(url)
       } else {
+        const { url } = await uploadCafePhotoAction(formData, cafeId)
         setCurrentPhotoUrls((prev) => [...prev, url])
       }
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Upload failed"
+      setUploadError(msg)
+      setTimeout(() => setUploadError(""), 4000)
     } finally {
       setIsUploading(false)
+      e.target.value = ""
     }
   }
 
-  function handleDeleteConfirm() {
+  async function handleDeleteConfirm() {
     if (deleteConfirm === null) return
-    const photo = allPhotos[deleteConfirm]
-    if (photo === currentHeroUrl) {
-      setCurrentHeroUrl(null)
-    } else {
-      setCurrentPhotoUrls((prev) => prev.filter((u) => u !== photo))
-    }
+    const photo  = allPhotos[deleteConfirm]
+    const isHero = photo === currentHeroUrl
     setDeleteConfirm(null)
+    setIsUploading(true)
+    try {
+      await deleteCafePhotoAction(photo, isHero, cafeId)
+      if (isHero) {
+        const gallery = currentPhotoUrls.filter((u) => u !== photo)
+        setCurrentHeroUrl(gallery[0] ?? null)
+        setCurrentPhotoUrls(gallery.slice(1))
+      } else {
+        setCurrentPhotoUrls((prev) => prev.filter((u) => u !== photo))
+      }
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Delete failed"
+      setUploadError(msg)
+      setTimeout(() => setUploadError(""), 4000)
+    } finally {
+      setIsUploading(false)
+    }
   }
 
   return (
@@ -132,8 +147,8 @@ export function OwnerPhotosClient({
             </p>
             <p className="text-xs text-blue-700 dark:text-blue-300">
               Hero photo → cafes.featured_image_url · Additional photos →
-              cafes.photo_urls (jsonb array) · Stored in Supabase Storage
-              cafe-photos bucket
+              cafes.photo_urls (jsonb array) · Stored in DigitalOcean Spaces
+              under nook/cafes/{"{cafeId}"}/
             </p>
           </div>
         </div>
@@ -227,7 +242,7 @@ export function OwnerPhotosClient({
               <div className="flex flex-col gap-0.5">
                 <CardTitle>Gallery photos</CardTitle>
                 <CardDescription>
-                  cafes.photo_urls (jsonb) — up to 3 photos including the hero
+                  cafes.photo_urls (jsonb) — up to 5 photos including the hero
                 </CardDescription>
               </div>
               <Badge variant="outline">{usedSlots} / {TOTAL_SLOTS} used</Badge>
@@ -309,6 +324,16 @@ export function OwnerPhotosClient({
               )}
             </div>
 
+            {usedSlots >= TOTAL_SLOTS && (
+              <p className="text-xs text-muted-foreground">
+                Maximum 5 photos reached
+              </p>
+            )}
+
+            {uploadError && (
+              <p className="text-sm text-destructive mt-2">{uploadError}</p>
+            )}
+
             <p className="text-xs text-muted-foreground">
               Tip: Drag photos to reorder them. The first photo becomes the hero
               if you delete the current hero.
@@ -358,7 +383,7 @@ export function OwnerPhotosClient({
             <AlertDialogTitle>Delete photo?</AlertDialogTitle>
             <AlertDialogDescription>
               This photo will be permanently removed from your listing and
-              Supabase Storage.
+              DigitalOcean Spaces.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

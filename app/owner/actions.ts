@@ -47,8 +47,9 @@ export async function upsertMenuItemAction(
   item: Omit<Parameters<typeof upsertMenuItem>[0], "cafe_id">
 ) {
   const cafeId = await getOwnerCafeId()
-  await upsertMenuItem({ ...item, cafe_id: cafeId })
+  const data = await upsertMenuItem({ ...item, cafe_id: cafeId })
   revalidatePath("/owner/menu")
+  return { id: data.id as string }
 }
 
 export async function deleteMenuItemAction(id: string) {
