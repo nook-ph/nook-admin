@@ -2,9 +2,10 @@
 
 import * as React from "react"
 import Link from "next/link"
+import dynamic from "next/dynamic"
+import { SearchBox } from "@mapbox/search-js-react"
 import {
   ArrowLeft,
-  MapPin,
   Plus,
   X,
   Trash,
@@ -157,6 +158,18 @@ function groupTagsByCategory(tags: Tag[]) {
   }
   return map
 }
+
+const MapPicker = dynamic(
+  () => import("@/components/admin/map-picker").then((m) => m.MapPicker),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="flex h-64 w-full items-center justify-center rounded-lg border bg-muted text-sm text-muted-foreground">
+        Loading map...
+      </div>
+    ),
+  }
+)
 
 // ---------------------------------------------------------------------------
 // Sub-components
@@ -967,7 +980,14 @@ export function CafeEditorForm({
   const [description, setDescription] = React.useState(cafe?.description ?? "")
 
   // --- Location ---
-  const [address, setAddress] = React.useState(cafe?.address ?? "")
+  const [addressInput, setAddressInput] = React.useState(cafe?.address ?? "")
+  const [lat, setLat] = React.useState<number>(cafe?.lat ?? 10.3157)
+  const [lng, setLng] = React.useState<number>(cafe?.lng ?? 123.8854)
+
+  const handleMapChange = React.useCallback((newLat: number, newLng: number) => {
+    setLat(newLat)
+    setLng(newLng)
+  }, [])
 
   // --- Social Links ---
   const [instagram, setInstagram] = React.useState(cafe?.social_links?.instagram ?? "")
@@ -1167,7 +1187,9 @@ export function CafeEditorForm({
         neighborhood,
         city,
         description,
-        address,
+        address: addressInput,
+        lat,
+        lng,
         operating_hours: hours,
         social_links: { instagram, facebook, tiktok, website },
         status: listingStatus,
@@ -1280,34 +1302,86 @@ export function CafeEditorForm({
                 </CardDescription>
               </CardHeader>
               <CardContent className="flex flex-col gap-4">
-                <FieldGroup label="Address">
-                  <Input
-                    placeholder="e.g. Ground Floor, IT Park"
-                    value={address}
-                    onChange={(e) => setAddress(e.target.value)}
+                <div className="space-y-2">
+                  <label className="text-sm font-medium leading-none">
+                    Address
+                  </label>
+                  <SearchBox
+                    accessToken={process.env.NEXT_PUBLIC_MAPBOX_TOKEN!}
+                    value={addressInput}
+                    onChange={(value) => {
+                      setAddressInput(value)
+                    }}
+                    onRetrieve={(res) => {
+                      const feature = res.features[0]
+                      if (!feature) return
+
+                      const [retrievedLng, retrievedLat] =
+                        feature.geometry.coordinates
+
+                      setAddressInput(
+                        feature.properties.full_address ??
+                        feature.properties.place_name ??
+                        ""
+                      )
+                      setLat(parseFloat(retrievedLat.toFixed(6)))
+                      setLng(parseFloat(retrievedLng.toFixed(6)))
+                    }}
+                    options={{
+                      country: "PH",
+                      language: "en",
+                      limit: 5,
+                      types: [
+                        "place",
+                        "locality",
+                        "neighborhood",
+                        "address",
+                        "poi",
+                        "street",
+                      ],
+                    }}
+                    placeholder="Search for an address or place..."
+                    theme={{
+                      variables: {
+                        borderRadius: "var(--radius)",
+                        fontFamily: "var(--font-sans)",
+                        colorBackground: "var(--background)",
+                        colorBackgroundHover: "var(--muted)",
+                        colorText: "var(--foreground)",
+                        colorSecondary: "var(--muted-foreground)",
+                        colorBorder: "var(--border)",
+                        boxShadow: "var(--shadow-sm)",
+                      },
+                    }}
                     disabled={disabled}
                   />
-                </FieldGroup>
-
-                <div className="mt-3 h-64 w-full rounded-lg border border-dashed border-border bg-muted flex flex-col items-center justify-center gap-2 text-muted-foreground">
-                  <MapPin className="size-8" />
-                  <p className="text-sm">Map picker</p>
-                  <p className="text-xs">Mapbox GL JS loads here</p>
                 </div>
 
-                <div className="flex flex-col gap-1.5">
-                  <div className="grid grid-cols-2 gap-3">
-                    <FieldGroup label="Latitude">
-                      <Input value={cafe?.lat ?? "10.3157"} disabled />
-                    </FieldGroup>
-                    <FieldGroup label="Longitude">
-                      <Input value={cafe?.lng ?? "123.8854"} disabled />
-                    </FieldGroup>
+                <MapPicker
+                  lat={lat}
+                  lng={lng}
+                  onChange={handleMapChange}
+                  disabled={disabled}
+                />
+
+                <div className="mt-3 grid grid-cols-2 gap-3">
+                  <div className="flex flex-col gap-1">
+                    <p className="text-xs text-muted-foreground">Latitude</p>
+                    <p className="rounded-md bg-muted px-3 py-2 font-mono text-sm">
+                      {lat.toFixed(6)}
+                    </p>
                   </div>
-                  <p className="text-xs text-muted-foreground">
-                    Coordinates update automatically when you move the pin
-                  </p>
+                  <div className="flex flex-col gap-1">
+                    <p className="text-xs text-muted-foreground">Longitude</p>
+                    <p className="rounded-md bg-muted px-3 py-2 font-mono text-sm">
+                      {lng.toFixed(6)}
+                    </p>
+                  </div>
                 </div>
+
+                <p className="mt-2 text-xs text-muted-foreground">
+                  Drag the pin or click anywhere on the map to set the exact location. Coordinates update automatically.
+                </p>
               </CardContent>
             </Card>
 
