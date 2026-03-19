@@ -3,7 +3,6 @@
 import * as React from "react"
 import Link from "next/link"
 import dynamic from "next/dynamic"
-import { SearchBox } from "@mapbox/search-js-react"
 import {
   ArrowLeft,
   Plus,
@@ -105,13 +104,13 @@ export interface CafeEditorFormProps {
 }
 
 const DAYS = [
-  "Monday",
-  "Tuesday",
-  "Wednesday",
-  "Thursday",
-  "Friday",
-  "Saturday",
-  "Sunday",
+  { key: "monday", label: "Monday" },
+  { key: "tuesday", label: "Tuesday" },
+  { key: "wednesday", label: "Wednesday" },
+  { key: "thursday", label: "Thursday" },
+  { key: "friday", label: "Friday" },
+  { key: "saturday", label: "Saturday" },
+  { key: "sunday", label: "Sunday" },
 ] as const
 
 // ---------------------------------------------------------------------------
@@ -169,6 +168,11 @@ const MapPicker = dynamic(
       </div>
     ),
   }
+)
+
+const SearchBox = dynamic(
+  () => import("@mapbox/search-js-react").then((m) => m.SearchBox),
+  { ssr: false }
 )
 
 // ---------------------------------------------------------------------------
@@ -999,12 +1003,14 @@ export function CafeEditorForm({
   type DayHours = { open: string; close: string; closed: boolean }
   const [hours, setHours] = React.useState<Record<string, DayHours>>(() => {
     const defaults = Object.fromEntries(
-      DAYS.map((d) => [d, { open: "", close: "", closed: false }])
+      DAYS.map(({ key }) => [key, { open: "", close: "", closed: false }])
     )
     if (cafe?.operating_hours) {
       const saved = cafe.operating_hours as Record<string, DayHours>
-      DAYS.forEach((d) => {
-        if (saved[d]) defaults[d] = saved[d]
+      DAYS.forEach(({ key, label }) => {
+        // Backward compatibility for old records that used capitalized day keys.
+        if (saved[key]) defaults[key] = saved[key]
+        else if (saved[label]) defaults[key] = saved[label]
       })
     }
     return defaults
@@ -1164,23 +1170,91 @@ export function CafeEditorForm({
 
   // --- Save ---
   const [saving, setSaving] = React.useState(false)
-  const [saveError, setSaveError] = React.useState("")
+  const [saveError, setSaveError] = React.useState<{
+    title: string
+    message: string
+    details: string[]
+  } | null>(null)
 
-  function parseSaveError(err: unknown): string {
-    if (!(err instanceof Error)) return "An unexpected error occurred"
+  const missingRequiredFields = React.useMemo(() => {
+    const checks = [
+      { label: "Cafe name", value: name },
+      { label: "Neighborhood", value: neighborhood },
+      { label: "City", value: city },
+      { label: "Description", value: description },
+      { label: "Address", value: addressInput },
+    ]
+
+    return checks
+      .filter((field) => field.value.trim().length === 0)
+      .map((field) => field.label)
+  }, [addressInput, city, description, name, neighborhood])
+
+  const hasMissingRequiredFields = missingRequiredFields.length > 0
+
+  function parseSaveError(err: unknown): {
+    title: string
+    message: string
+    details: string[]
+  } {
+    if (!(err instanceof Error)) {
+      return {
+        title: "Save failed",
+        message: "An unexpected error occurred while saving this cafe.",
+        details: ["No structured error details were provided by the server."],
+      }
+    }
+
     // Server actions serialize Supabase errors as JSON strings
     try {
       const parsed = JSON.parse(err.message)
-      if (parsed?.message) return parsed.message
+      if (parsed && typeof parsed === "object") {
+        const details: string[] = []
+        if (typeof parsed.code === "string" && parsed.code.length > 0) {
+          details.push(`Error code: ${parsed.code}`)
+        }
+        if (typeof parsed.details === "string" && parsed.details.length > 0) {
+          details.push(parsed.details)
+        }
+        if (typeof parsed.hint === "string" && parsed.hint.length > 0) {
+          details.push(`Hint: ${parsed.hint}`)
+        }
+
+        return {
+          title: "Save failed",
+          message:
+            typeof parsed.message === "string" && parsed.message.length > 0
+              ? parsed.message
+              : "The server rejected the save request.",
+          details,
+        }
+      }
     } catch {
-      // not JSON — use the raw message
+      // Not JSON; fall back to raw error message
     }
-    return err.message
+
+    return {
+      title: "Save failed",
+      message: err.message,
+      details: [
+        "Please review required fields and try again.",
+        "If the issue persists, check server logs for more context.",
+      ],
+    }
   }
 
   async function handleSave() {
+    if (hasMissingRequiredFields) {
+      setSaveError({
+        title: "Required fields missing",
+        message: "Fill in all required fields before saving this cafe.",
+        details: missingRequiredFields.map((field) => `${field} is required.`),
+      })
+      return
+    }
+
     setSaving(true)
-    setSaveError("")
+    setSaveError(null)
     try {
       const payload = {
         name,
@@ -1199,7 +1273,16 @@ export function CafeEditorForm({
         featuredTagId: featuredTag || null,
       }
       if (mode === "create") {
-        await createCafeAction(payload)
+        await createCafeAction({
+          ...payload,
+          menuItems: menuItems.map((item) => ({
+            name: item.name,
+            price: item.price,
+            category_id: item.categoryId,
+            is_highlight: item.isHighlight,
+            image_url: item.imageUrl,
+          })),
+        })
       } else {
         await updateCafeAction(cafe!.id, payload)
       }
@@ -1391,16 +1474,16 @@ export function CafeEditorForm({
                 <CardTitle>Operating Hours</CardTitle>
               </CardHeader>
               <CardContent>
-                {DAYS.map((day) => {
-                  const dayHours = hours[day]
+                {DAYS.map(({ key, label }) => {
+                  const dayHours = hours[key]
                   const isClosed = dayHours?.closed ?? false
                   return (
                     <div
-                      key={day}
+                      key={key}
                       className="flex items-center gap-4 py-2 border-b last:border-0"
                     >
                       <span className="w-24 text-sm font-medium shrink-0">
-                        {day}
+                        {label}
                       </span>
                       <Input
                         className="w-32"
@@ -1409,7 +1492,7 @@ export function CafeEditorForm({
                         onChange={(e) =>
                           setHours((prev) => ({
                             ...prev,
-                            [day]: { ...prev[day], open: e.target.value },
+                            [key]: { ...prev[key], open: e.target.value },
                           }))
                         }
                         disabled={isClosed || disabled}
@@ -1421,25 +1504,25 @@ export function CafeEditorForm({
                         onChange={(e) =>
                           setHours((prev) => ({
                             ...prev,
-                            [day]: { ...prev[day], close: e.target.value },
+                            [key]: { ...prev[key], close: e.target.value },
                           }))
                         }
                         disabled={isClosed || disabled}
                       />
                       <div className="flex items-center gap-2 ml-auto">
                         <label
-                          htmlFor={`closed-${day}`}
+                          htmlFor={`closed-${key}`}
                           className="text-xs text-muted-foreground cursor-pointer select-none"
                         >
                           Closed
                         </label>
                         <Switch
-                          id={`closed-${day}`}
+                          id={`closed-${key}`}
                           checked={isClosed}
                           onCheckedChange={(val) =>
                             setHours((prev) => ({
                               ...prev,
-                              [day]: { ...prev[day], closed: val },
+                              [key]: { ...prev[key], closed: val },
                             }))
                           }
                           disabled={disabled}
@@ -1800,17 +1883,38 @@ export function CafeEditorForm({
                       {saveError && (
                         <div className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2">
                           <p className="text-xs font-medium text-destructive mb-0.5">
-                            Save failed
+                            {saveError.title}
                           </p>
-                          <p className="text-xs text-destructive/80">{saveError}</p>
+                          <p className="text-xs text-destructive/80">{saveError.message}</p>
+                          {saveError.details.length > 0 && (
+                            <ul className="mt-1 list-disc pl-4 text-xs text-destructive/80 space-y-0.5">
+                              {saveError.details.map((detail) => (
+                                <li key={detail}>{detail}</li>
+                              ))}
+                            </ul>
+                          )}
                         </div>
                       )}
-                      <Button className="w-full" onClick={handleSave} disabled={saving}>
+                      {hasMissingRequiredFields && (
+                        <p className="text-xs text-muted-foreground">
+                          Fill required fields first: {missingRequiredFields.join(", ")}.
+                        </p>
+                      )}
+                      <Button
+                        className="w-full"
+                        onClick={handleSave}
+                        disabled={saving || hasMissingRequiredFields}
+                      >
                         {saving
                           ? "Saving..."
                           : mode === "create" ? "Create Listing" : "Save & Publish"}
                       </Button>
-                      <Button variant="outline" className="w-full" onClick={handleSave} disabled={saving}>
+                      <Button
+                        variant="outline"
+                        className="w-full"
+                        onClick={handleSave}
+                        disabled={saving || hasMissingRequiredFields}
+                      >
                         {saving ? "Saving..." : "Save as Draft"}
                       </Button>
                       <Separator className="my-1" />

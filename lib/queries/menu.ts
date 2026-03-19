@@ -30,6 +30,18 @@ export async function getCategoriesForCafe(cafeId: string) {
   return (data ?? []) as Category[]
 }
 
+export async function getGlobalCategories() {
+  const supabase = await createClient()
+  const { data, error } = await supabase
+    .from("menu_categories")
+    .select("*")
+    .eq("is_global", true)
+    .order("name", { ascending: true })
+
+  if (error) throw error
+  return (data ?? []) as Category[]
+}
+
 export async function upsertMenuItem(item: {
   id?: string
   cafe_id: string
@@ -71,4 +83,23 @@ export async function createMenuCategory(category: {
 
   if (error) throw error
   return data as Category
+}
+
+export async function assignDraftCategoriesToCafe(
+  cafeId: string,
+  categoryIds: string[]
+) {
+  if (categoryIds.length === 0) return
+
+  const uniqueIds = Array.from(new Set(categoryIds))
+  const supabase = createAdminClient()
+
+  const { error } = await supabase
+    .from("menu_categories")
+    .update({ created_by: cafeId })
+    .in("id", uniqueIds)
+    .eq("is_global", false)
+    .is("created_by", null)
+
+  if (error) throw error
 }
