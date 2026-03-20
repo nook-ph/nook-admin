@@ -8,6 +8,7 @@ import {
   upsertMenuItem,
   deleteMenuItem,
   createMenuCategory,
+  deleteMenuCategory,
   assignDraftCategoriesToCafe,
 } from "@/lib/queries/menu"
 
@@ -128,4 +129,22 @@ export async function createMenuCategoryAction(category: {
 export async function deleteMenuItemAction(id: string, cafeId: string) {
   await deleteMenuItem(id)
   revalidatePath(`/admin/cafes/${cafeId}/edit`)
+}
+
+export async function deleteMenuCategoryAction(
+  id: string,
+  cafeId?: string
+) {
+  try {
+    await deleteMenuCategory(id)
+    revalidatePath("/admin/tags")
+    revalidatePath("/admin/cafes")
+    if (cafeId) revalidatePath(`/admin/cafes/${cafeId}/edit`)
+    return { success: true }
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Failed to delete category",
+    }
+  }
 }

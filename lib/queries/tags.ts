@@ -5,8 +5,11 @@ export type Tag = {
   id: string
   name: string
   category: string
+  icon_name: string | null
   sort_order: number
   is_active: boolean
+  created_at: string
+  cafe_tags?: { count: number }[]
 }
 
 export async function getAllTags(includeVibe = false) {
@@ -24,33 +27,47 @@ export async function getAllTags(includeVibe = false) {
   return (data ?? []) as Tag[]
 }
 
-export async function getAllTagsAdmin() {
+export async function getAllTagsAdmin(): Promise<Tag[]> {
   const supabase = createAdminClient()
   const { data, error } = await supabase
     .from("tags")
     .select("*, cafe_tags(count)")
     .order("category")
-    .order("sort_order")
+    .order("sort_order", { ascending: true })
 
   if (error) throw error
-  return data ?? []
+  return (data ?? []) as Tag[]
 }
 
 export async function createTag(payload: {
   name: string
   category: string
   icon_name?: string
-  sort_order?: number
-}) {
+}): Promise<Tag> {
   const supabase = createAdminClient()
+
+  // Put the new tag at the bottom of its category.
+  const { data: existing } = await supabase
+    .from("tags")
+    .select("sort_order")
+    .eq("category", payload.category)
+    .order("sort_order", { ascending: false })
+    .limit(1)
+
+  const nextOrder = (existing?.[0]?.sort_order ?? 0) + 1
+
   const { data, error } = await supabase
     .from("tags")
-    .insert({ ...payload, is_active: true })
+    .insert({
+      ...payload,
+      sort_order: nextOrder,
+      is_active: true,
+    })
     .select()
     .single()
 
   if (error) throw error
-  return data
+  return data as Tag
 }
 
 export async function updateTag(
@@ -61,7 +78,7 @@ export async function updateTag(
     sort_order?: number
     is_active?: boolean
   }
-) {
+): Promise<Tag> {
   const supabase = createAdminClient()
   const { data, error } = await supabase
     .from("tags")
@@ -71,7 +88,26 @@ export async function updateTag(
     .single()
 
   if (error) throw error
-  return data
+  return data as Tag
+}
+
+export async function deleteTag(id: string): Promise<void> {
+  const supabase = createAdminClient()
+
+  const { count } = await supabase
+    .from("cafe_tags")
+    .select("*", { count: "exact", head: true })
+    .eq("tag_id", id)
+
+  if (count && count > 0) {
+    throw new Error(
+      `Cannot delete - ${count} cafe${count > 1 ? "s" : ""} use this tag. Deactivate it instead.`
+    )
+  }
+
+  const { error } = await supabase.from("tags").delete().eq("id", id)
+
+  if (error) throw error
 }
 
 export async function setCafeTags(

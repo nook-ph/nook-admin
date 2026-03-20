@@ -103,3 +103,34 @@ export async function assignDraftCategoriesToCafe(
 
   if (error) throw error
 }
+
+export async function deleteMenuCategory(id: string): Promise<void> {
+  const supabase = createAdminClient()
+
+  const { count } = await supabase
+    .from("menu_items")
+    .select("*", { count: "exact", head: true })
+    .eq("category_id", id)
+
+  if (count && count > 0) {
+    throw new Error(
+      `Cannot delete - ${count} menu item${count > 1 ? "s" : ""} use this category. Reassign them first.`
+    )
+  }
+
+  const { data: category } = await supabase
+    .from("menu_categories")
+    .select("is_global")
+    .eq("id", id)
+    .single()
+
+  if (category?.is_global) {
+    throw new Error(
+      "Cannot delete a global category. Contact the Nook team to remove global categories."
+    )
+  }
+
+  const { error } = await supabase.from("menu_categories").delete().eq("id", id)
+
+  if (error) throw error
+}

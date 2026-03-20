@@ -18,6 +18,7 @@ import {
   ImageSquare,
   Info,
 } from "@phosphor-icons/react"
+import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -79,6 +80,7 @@ import {
   upsertMenuItemAction,
   deleteMenuItemAction,
   createMenuCategoryAction,
+  deleteMenuCategoryAction,
 } from "@/app/admin/cafes/editor-actions"
 import {
   uploadCafeHeroAction,
@@ -631,7 +633,7 @@ function MenuCategoriesCard({
   categories: LocalMenuCategory[]
   cafeId?: string
   onCategoryAdded: (cat: LocalMenuCategory) => void
-  onDeleteCategory: (id: string) => void
+  onDeleteCategory: (id: string) => Promise<void>
   disabled?: boolean
 }) {
   const [addCategoryOpen, setAddCategoryOpen] = React.useState(false)
@@ -667,15 +669,17 @@ function MenuCategoriesCard({
                 <Button variant="ghost" size="icon" disabled={disabled}>
                   <PencilSimple />
                 </Button>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="text-destructive hover:text-destructive"
-                  onClick={() => setDeleteCategoryId(cat.id)}
-                  disabled={disabled}
-                >
-                  <Trash />
-                </Button>
+                {!cat.isGlobal && (
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="text-destructive hover:text-destructive"
+                    onClick={() => setDeleteCategoryId(cat.id)}
+                    disabled={disabled}
+                  >
+                    <Trash />
+                  </Button>
+                )}
               </div>
             </div>
           ))}
@@ -716,8 +720,8 @@ function MenuCategoriesCard({
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction
               variant="destructive"
-              onClick={() => {
-                if (deleteCategoryId !== null) onDeleteCategory(deleteCategoryId)
+              onClick={async () => {
+                if (deleteCategoryId !== null) await onDeleteCategory(deleteCategoryId)
                 setDeleteCategoryId(null)
               }}
             >
@@ -1072,8 +1076,23 @@ export function CafeEditorForm({
     setMenuItems((prev) => prev.filter((item) => item.id !== itemId))
   }
 
-  function handleDeleteCategory(catId: string) {
+  async function handleDeleteCategory(catId: string) {
+    if (cafe?.id) {
+      const result = await deleteMenuCategoryAction(catId, cafe.id)
+      if (!result.success) {
+        toast.error(result.error)
+        return
+      }
+    } else {
+      const result = await deleteMenuCategoryAction(catId)
+      if (!result.success) {
+        toast.error(result.error)
+        return
+      }
+    }
+
     setMenuCategories((prev) => prev.filter((cat) => cat.id !== catId))
+    toast.success("Category deleted")
   }
 
   function handleImageUploaded(id: string, url: string) {
