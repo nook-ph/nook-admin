@@ -11,6 +11,7 @@ export type Category = {
 export type MenuItem = {
   id: string
   name: string
+  description?: string | null
   price: number
   is_highlight: boolean
   image_url: string | null
@@ -46,6 +47,7 @@ export async function upsertMenuItem(item: {
   id?: string
   cafe_id: string
   name: string
+  description?: string | null
   price: number
   category_id: string
   is_highlight: boolean
@@ -78,6 +80,22 @@ export async function createMenuCategory(category: {
   const { data, error } = await supabase
     .from("menu_categories")
     .insert(category)
+    .select()
+    .single()
+
+  if (error) throw error
+  return data as Category
+}
+
+export async function updateMenuCategory(category: {
+  id: string
+  name: string
+}): Promise<Category> {
+  const supabase = createAdminClient()
+  const { data, error } = await supabase
+    .from("menu_categories")
+    .update({ name: category.name })
+    .eq("id", category.id)
     .select()
     .single()
 

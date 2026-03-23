@@ -80,6 +80,7 @@ import {
   upsertMenuItemAction,
   deleteMenuItemAction,
   createMenuCategoryAction,
+  updateMenuCategoryAction,
   deleteMenuCategoryAction,
 } from "@/app/admin/cafes/editor-actions"
 import {
@@ -128,6 +129,7 @@ interface LocalMenuCategory {
 interface LocalMenuItem {
   id: string
   name: string
+  description: string
   category: string
   categoryId: string
   price: number
@@ -225,6 +227,7 @@ interface MenuItemRowProps {
   item: LocalMenuItem
   showCategory?: boolean
   highlightCount: number
+  onEdit: (item: LocalMenuItem) => void
   onToggleHighlight: (id: string, val: boolean) => void
   onDelete: (id: string) => void
   onImageUpload: (id: string, file: File) => void
@@ -238,6 +241,7 @@ function MenuItemRow({
   item,
   showCategory = true,
   highlightCount,
+  onEdit,
   onToggleHighlight,
   onDelete,
   onImageUpload,
@@ -313,6 +317,11 @@ function MenuItemRow({
             </Badge>
           )}
         </div>
+        {item.description.trim().length > 0 && (
+          <p className="text-xs text-muted-foreground mt-0.5 truncate">
+            {item.description}
+          </p>
+        )}
         <div className="flex items-center gap-2 mt-0.5">
           {showCategory && (
             <span className="text-xs text-muted-foreground">{item.category}</span>
@@ -345,7 +354,12 @@ function MenuItemRow({
 
       {/* Col 5 — actions */}
       <div className="flex shrink-0">
-        <Button variant="ghost" size="icon" disabled={disabled}>
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={() => onEdit(item)}
+          disabled={disabled}
+        >
           <PencilSimple />
         </Button>
         <Button
@@ -454,6 +468,84 @@ function AddCategoryDialog({
   )
 }
 
+function EditCategoryDialog({
+  open,
+  onOpenChange,
+  category,
+  cafeId,
+  onCategoryUpdated,
+}: {
+  open: boolean
+  onOpenChange: (v: boolean) => void
+  category: LocalMenuCategory | null
+  cafeId?: string
+  onCategoryUpdated: (cat: LocalMenuCategory) => void
+}) {
+  const [name, setName] = React.useState("")
+  const [saving, setSaving] = React.useState(false)
+  const [error, setError] = React.useState("")
+
+  React.useEffect(() => {
+    if (open && category) {
+      setName(category.name)
+      setError("")
+    }
+  }, [open, category])
+
+  async function handleSave() {
+    if (!category || !name.trim()) return
+    setSaving(true)
+    setError("")
+    try {
+      const data = await updateMenuCategoryAction({
+        id: category.id,
+        name: name.trim(),
+        cafeId,
+      })
+      onCategoryUpdated({
+        id: data.id,
+        name: data.name,
+        isGlobal: data.is_global,
+      })
+      onOpenChange(false)
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Failed to update category")
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Edit Category</DialogTitle>
+        </DialogHeader>
+        <div className="flex flex-col gap-4">
+          <FieldGroup label="Category name">
+            <Input
+              placeholder="e.g. Specialty Drinks"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+            />
+          </FieldGroup>
+        </div>
+        {error && (
+          <p className="text-sm text-destructive">{error}</p>
+        )}
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>
+            Cancel
+          </Button>
+          <Button onClick={handleSave} disabled={saving || !name.trim()}>
+            {saving ? "Saving..." : "Save Changes"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
 // ---------------------------------------------------------------------------
 // Add Item Dialog
 // ---------------------------------------------------------------------------
@@ -476,10 +568,13 @@ function AddItemDialog({
   onItemAdded,
 }: AddItemDialogProps) {
   const [itemName, setItemName] = React.useState("")
+  const [description, setDescription] = React.useState("")
   const [categoryId, setCategoryId] = React.useState("")
   const [price, setPrice] = React.useState("")
   const [isHighlight, setIsHighlight] = React.useState(false)
   const [saving, setSaving] = React.useState(false)
+  const [pendingImageFile, setPendingImageFile] = React.useState<File | null>(null)
+  const dialogInputRef = React.useRef<HTMLInputElement>(null)
   const atCap = highlightCount >= 5
 
   async function handleAdd() {
@@ -493,20 +588,35 @@ function AddItemDialog({
         const result = await upsertMenuItemAction({
           cafe_id: cafeId,
           name: itemName,
+          description: description.trim() || null,
           price: priceNum,
           category_id: categoryId,
           is_highlight: isHighlight,
           image_url: null,
         })
+
+        let imageUrl: string | null = null
+        if (isHighlight && pendingImageFile) {
+          try {
+            const formData = new FormData()
+            formData.append("file", pendingImageFile)
+            const upload = await uploadMenuItemImageAction(formData, result.id, cafeId)
+            imageUrl = upload.url
+          } catch {
+            toast.error("Menu item added, but highlight photo upload failed")
+          }
+        }
+
         const cat = categories.find((c) => c.id === categoryId)
         onItemAdded({
           id: result.id,
           name: itemName,
+          description,
           category: cat?.name ?? "",
           categoryId,
           price: priceNum,
           isHighlight,
-          imageUrl: null,
+          imageUrl,
         })
       } finally {
         setSaving(false)
@@ -516,6 +626,7 @@ function AddItemDialog({
       onItemAdded({
         id: crypto.randomUUID(),
         name: itemName,
+        description,
         category: cat?.name ?? "",
         categoryId,
         price: priceNum,
@@ -525,32 +636,64 @@ function AddItemDialog({
     }
 
     setItemName("")
+    setDescription("")
     setCategoryId("")
     setPrice("")
     setIsHighlight(false)
+    setPendingImageFile(null)
     onOpenChange(false)
   }
 
   function handleCancel() {
     setItemName("")
+    setDescription("")
     setCategoryId("")
     setPrice("")
     setIsHighlight(false)
+    setPendingImageFile(null)
     onOpenChange(false)
   }
 
+  function handleOpenChange(v: boolean) {
+    if (!v) {
+      setItemName("")
+      setDescription("")
+      setCategoryId("")
+      setPrice("")
+      setIsHighlight(false)
+      setPendingImageFile(null)
+    }
+    onOpenChange(v)
+  }
+
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Add Menu Item</DialogTitle>
         </DialogHeader>
         <div className="space-y-4">
+          <input
+            ref={dialogInputRef}
+            type="file"
+            accept="image/jpeg,image/png,image/webp"
+            className="hidden"
+            onChange={(e) => setPendingImageFile(e.target.files?.[0] ?? null)}
+          />
           <FieldGroup label="Item name">
             <Input
               placeholder="e.g. Iced Oat Latte"
               value={itemName}
               onChange={(e) => setItemName(e.target.value)}
+            />
+          </FieldGroup>
+          <FieldGroup label="Description">
+            <Textarea
+              placeholder="Short item description..."
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              rows={3}
+              className="resize-none"
             />
           </FieldGroup>
           <FieldGroup label="Category">
@@ -599,11 +742,31 @@ function AddItemDialog({
             )}
           </div>
           {isHighlight && !atCap && (
-            <div className="mt-1 h-32 w-full rounded-lg border-2 border-dashed border-border flex flex-col items-center justify-center gap-2 cursor-pointer hover:bg-muted text-muted-foreground transition-colors">
-              <ImageSquare className="size-6" />
-              <span className="text-sm">Click to upload</span>
-              <span className="text-xs">JPG, PNG or WEBP · Max 5MB</span>
-            </div>
+            cafeId ? (
+              <div
+                className="mt-1 h-32 w-full rounded-lg border-2 border-dashed border-border flex flex-col items-center justify-center gap-2 cursor-pointer hover:bg-muted text-muted-foreground transition-colors"
+                onClick={() => dialogInputRef.current?.click()}
+              >
+                <ImageSquare className={`size-6 ${pendingImageFile ? "text-primary" : ""}`} />
+                {pendingImageFile ? (
+                  <>
+                    <span className="text-sm font-medium truncate max-w-55">
+                      {pendingImageFile.name}
+                    </span>
+                    <span className="text-xs">Click to change</span>
+                  </>
+                ) : (
+                  <>
+                    <span className="text-sm">Click to upload</span>
+                    <span className="text-xs">JPG, PNG or WEBP · Max 5MB</span>
+                  </>
+                )}
+              </div>
+            ) : (
+              <div className="mt-1 rounded-md bg-muted px-3 py-2 text-xs text-muted-foreground">
+                Save the cafe first to upload highlight photos.
+              </div>
+            )
           )}
         </div>
         <DialogFooter>
@@ -619,25 +782,298 @@ function AddItemDialog({
   )
 }
 
+interface EditItemDialogProps {
+  open: boolean
+  onOpenChange: (v: boolean) => void
+  item: LocalMenuItem | null
+  categories: LocalMenuCategory[]
+  highlightCount: number
+  cafeId?: string
+  onItemUpdated: (item: LocalMenuItem) => void
+}
+
+function EditItemDialog({
+  open,
+  onOpenChange,
+  item,
+  categories,
+  highlightCount,
+  cafeId,
+  onItemUpdated,
+}: EditItemDialogProps) {
+  const [itemName, setItemName] = React.useState("")
+  const [description, setDescription] = React.useState("")
+  const [categoryId, setCategoryId] = React.useState("")
+  const [price, setPrice] = React.useState("")
+  const [isHighlight, setIsHighlight] = React.useState(false)
+  const [removeCurrentImage, setRemoveCurrentImage] = React.useState(false)
+  const [pendingImageFile, setPendingImageFile] = React.useState<File | null>(null)
+  const [saving, setSaving] = React.useState(false)
+  const dialogInputRef = React.useRef<HTMLInputElement>(null)
+
+  React.useEffect(() => {
+    if (!open || !item) return
+    setItemName(item.name)
+    setDescription(item.description)
+    setCategoryId(item.categoryId)
+    setPrice(item.price.toString())
+    setIsHighlight(item.isHighlight)
+    setRemoveCurrentImage(false)
+    setPendingImageFile(null)
+  }, [open, item])
+
+  if (!item) return null
+  const editingItem = item
+
+  const atCap = highlightCount >= 5 && !editingItem.isHighlight
+
+  async function handleSave() {
+    if (!itemName || !categoryId || !price) return
+    const priceNum = parseFloat(price)
+    if (isNaN(priceNum)) return
+
+    setSaving(true)
+    try {
+      let imageUrl: string | null = editingItem.imageUrl
+      if (removeCurrentImage) imageUrl = null
+
+      if (cafeId) {
+        await upsertMenuItemAction({
+          id: editingItem.id,
+          cafe_id: cafeId,
+          name: itemName,
+          description: description.trim() || null,
+          price: priceNum,
+          category_id: categoryId,
+          is_highlight: isHighlight,
+          image_url: imageUrl,
+        })
+
+        if (removeCurrentImage && editingItem.imageUrl) {
+          try {
+            await deleteMenuItemImageAction(editingItem.id, editingItem.imageUrl, cafeId)
+            imageUrl = null
+          } catch {
+            toast.error("Item saved, but failed to remove current photo")
+          }
+        }
+
+        if (isHighlight && pendingImageFile) {
+          try {
+            const formData = new FormData()
+            formData.append("file", pendingImageFile)
+            const upload = await uploadMenuItemImageAction(formData, editingItem.id, cafeId)
+            imageUrl = upload.url
+          } catch {
+            toast.error("Item saved, but failed to upload highlight photo")
+          }
+        }
+      }
+
+      const cat = categories.find((c) => c.id === categoryId)
+      onItemUpdated({
+        id: editingItem.id,
+        name: itemName,
+        description,
+        category: cat?.name ?? "",
+        categoryId,
+        price: priceNum,
+        isHighlight,
+        imageUrl,
+      })
+      onOpenChange(false)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  function handleCancel() {
+    onOpenChange(false)
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Edit Menu Item</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-4">
+          <input
+            ref={dialogInputRef}
+            type="file"
+            accept="image/jpeg,image/png,image/webp"
+            className="hidden"
+            onChange={(e) => setPendingImageFile(e.target.files?.[0] ?? null)}
+          />
+
+          <FieldGroup label="Item name">
+            <Input
+              placeholder="e.g. Iced Oat Latte"
+              value={itemName}
+              onChange={(e) => setItemName(e.target.value)}
+            />
+          </FieldGroup>
+
+          <FieldGroup label="Description">
+            <Textarea
+              placeholder="Short item description..."
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              rows={3}
+              className="resize-none"
+            />
+          </FieldGroup>
+
+          <FieldGroup label="Category">
+            <Select value={categoryId} onValueChange={setCategoryId}>
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder="Select a category" />
+              </SelectTrigger>
+              <SelectContent>
+                {categories.map((cat) => (
+                  <SelectItem key={cat.id} value={cat.id}>
+                    {cat.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </FieldGroup>
+
+          <FieldGroup label="Price (₱)">
+            <Input
+              type="number"
+              placeholder="0.00"
+              min="0"
+              step="0.01"
+              value={price}
+              onChange={(e) => setPrice(e.target.value)}
+            />
+          </FieldGroup>
+
+          <div className="flex items-center justify-between">
+            <div className="flex flex-col gap-0.5">
+              <span className="text-sm font-medium">Feature as highlight</span>
+              <span className="text-xs text-muted-foreground">
+                Shows on the cafe detail page with a photo
+              </span>
+            </div>
+            {atCap ? (
+              <div className="flex flex-col items-end gap-1">
+                <Switch checked={false} disabled />
+                <span className="text-xs text-destructive">
+                  Maximum 5 highlights reached
+                </span>
+              </div>
+            ) : (
+              <Switch
+                checked={isHighlight}
+                onCheckedChange={setIsHighlight}
+              />
+            )}
+          </div>
+
+          {isHighlight && !atCap && (
+            cafeId ? (
+              <>
+                <div
+                  className="mt-1 h-28 w-full rounded-lg border-2 border-dashed border-border flex flex-col items-center justify-center gap-2 cursor-pointer hover:bg-muted text-muted-foreground transition-colors"
+                  onClick={() => dialogInputRef.current?.click()}
+                >
+                  <ImageSquare className={`size-6 ${pendingImageFile ? "text-primary" : ""}`} />
+                  {pendingImageFile ? (
+                    <>
+                      <span className="text-sm font-medium truncate max-w-55">
+                        {pendingImageFile.name}
+                      </span>
+                      <span className="text-xs">Click to change</span>
+                    </>
+                  ) : editingItem.imageUrl && !removeCurrentImage ? (
+                    <>
+                      <span className="text-sm">Current photo is set</span>
+                      <span className="text-xs">Click to replace</span>
+                    </>
+                  ) : (
+                    <>
+                      <span className="text-sm">Click to upload</span>
+                      <span className="text-xs">JPG, PNG or WEBP · Max 5MB</span>
+                    </>
+                  )}
+                </div>
+                {editingItem.imageUrl && !pendingImageFile && (
+                  <div className="flex items-center justify-between rounded-md bg-muted px-3 py-2">
+                    <span className="text-xs text-muted-foreground">
+                      {removeCurrentImage
+                        ? "Current photo will be removed on save"
+                        : "Current photo will be kept"}
+                    </span>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setRemoveCurrentImage((prev) => !prev)}
+                    >
+                      {removeCurrentImage ? "Keep photo" : "Remove photo"}
+                    </Button>
+                  </div>
+                )}
+              </>
+            ) : (
+              <div className="rounded-md bg-muted px-3 py-2 text-xs text-muted-foreground">
+                Save the cafe first to upload highlight photos.
+              </div>
+            )
+          )}
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={handleCancel}>
+            Cancel
+          </Button>
+          <Button onClick={handleSave} disabled={saving}>
+            {saving ? "Saving..." : "Save Item"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
 // ---------------------------------------------------------------------------
 // Menu Cards
 // ---------------------------------------------------------------------------
 
 function MenuCategoriesCard({
   categories,
+  items,
+  showGlobalCategories,
   cafeId,
   onCategoryAdded,
+  onCategoryUpdated,
   onDeleteCategory,
   disabled = false,
 }: {
   categories: LocalMenuCategory[]
+  items: LocalMenuItem[]
+  showGlobalCategories: boolean
   cafeId?: string
   onCategoryAdded: (cat: LocalMenuCategory) => void
+  onCategoryUpdated: (cat: LocalMenuCategory) => void
   onDeleteCategory: (id: string) => Promise<void>
   disabled?: boolean
 }) {
   const [addCategoryOpen, setAddCategoryOpen] = React.useState(false)
+  const [editCategory, setEditCategory] = React.useState<LocalMenuCategory | null>(null)
   const [deleteCategoryId, setDeleteCategoryId] = React.useState<string | null>(null)
+
+  const visibleCategories = React.useMemo(
+    () =>
+      categories.filter(
+        (cat) =>
+          showGlobalCategories ||
+          !cat.isGlobal ||
+          items.some((item) => item.categoryId === cat.id)
+      ),
+    [categories, items, showGlobalCategories]
+  )
 
   return (
     <>
@@ -649,7 +1085,7 @@ function MenuCategoriesCard({
           </CardDescription>
         </CardHeader>
         <CardContent>
-          {categories.map((cat) => (
+          {visibleCategories.map((cat) => (
             <div
               key={cat.id}
               className="flex items-center gap-3 py-3 border-b last:border-0"
@@ -666,7 +1102,12 @@ function MenuCategoriesCard({
                 </Badge>
               </div>
               <div className="flex gap-1 shrink-0">
-                <Button variant="ghost" size="icon" disabled={disabled}>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  disabled={disabled}
+                  onClick={() => setEditCategory(cat)}
+                >
                   <PencilSimple />
                 </Button>
                 {!cat.isGlobal && (
@@ -704,6 +1145,14 @@ function MenuCategoriesCard({
         onCategoryAdded={onCategoryAdded}
       />
 
+      <EditCategoryDialog
+        open={editCategory !== null}
+        onOpenChange={(open) => { if (!open) setEditCategory(null) }}
+        category={editCategory}
+        cafeId={cafeId}
+        onCategoryUpdated={onCategoryUpdated}
+      />
+
       <AlertDialog
         open={deleteCategoryId !== null}
         onOpenChange={(open) => { if (!open) setDeleteCategoryId(null) }}
@@ -737,25 +1186,30 @@ function MenuCategoriesCard({
 function MenuItemsCard({
   items,
   categories,
+  showGlobalCategories,
   cafeId,
   onToggleHighlight,
   onDeleteItem,
   onItemAdded,
+  onItemUpdated,
   onImageUploaded,
   onImageDeleted,
   disabled = false,
 }: {
   items: LocalMenuItem[]
   categories: LocalMenuCategory[]
+  showGlobalCategories: boolean
   cafeId?: string
   onToggleHighlight: (id: string, val: boolean) => void
   onDeleteItem: (id: string) => void
   onItemAdded: (item: LocalMenuItem) => void
+  onItemUpdated: (item: LocalMenuItem) => void
   onImageUploaded: (id: string, url: string) => void
   onImageDeleted: (id: string) => void
   disabled?: boolean
 }) {
   const [addItemOpen, setAddItemOpen] = React.useState(false)
+  const [editItem, setEditItem] = React.useState<LocalMenuItem | null>(null)
   const [deleteItemId, setDeleteItemId] = React.useState<string | null>(null)
   const [uploadingItemId, setUploadingItemId] = React.useState<string | null>(null)
   const [uploadError, setUploadError] = React.useState("")
@@ -796,6 +1250,17 @@ function MenuItemsCard({
   const highlights = items.filter((i) => i.isHighlight)
   const highlightCount = highlights.length
   const allHighlightsHaveNoImage = highlights.length > 0 && highlights.every((i) => !i.imageUrl)
+
+  const availableCategoriesForAdd = React.useMemo(
+    () =>
+      categories.filter(
+        (cat) =>
+          showGlobalCategories ||
+          !cat.isGlobal ||
+          items.some((item) => item.categoryId === cat.id)
+      ),
+    [categories, items, showGlobalCategories]
+  )
 
   const byCategory = categories
     .map((cat) => ({
@@ -861,6 +1326,7 @@ function MenuItemsCard({
                   item={item}
                   showCategory
                   highlightCount={highlightCount}
+                  onEdit={setEditItem}
                   onToggleHighlight={onToggleHighlight}
                   onDelete={handleDelete}
                   onImageUpload={handleImageUpload}
@@ -895,6 +1361,7 @@ function MenuItemsCard({
                   item={item}
                   showCategory
                   highlightCount={highlightCount}
+                  onEdit={setEditItem}
                   onToggleHighlight={onToggleHighlight}
                   onDelete={handleDelete}
                   onImageUpload={handleImageUpload}
@@ -919,6 +1386,7 @@ function MenuItemsCard({
                       item={item}
                       showCategory={false}
                       highlightCount={highlightCount}
+                      onEdit={setEditItem}
                       onToggleHighlight={onToggleHighlight}
                       onDelete={handleDelete}
                       onImageUpload={handleImageUpload}
@@ -942,9 +1410,19 @@ function MenuItemsCard({
         open={addItemOpen}
         onOpenChange={setAddItemOpen}
         highlightCount={highlightCount}
-        categories={categories}
+        categories={availableCategoriesForAdd}
         cafeId={cafeId}
         onItemAdded={onItemAdded}
+      />
+
+      <EditItemDialog
+        open={editItem !== null}
+        onOpenChange={(open) => { if (!open) setEditItem(null) }}
+        item={editItem}
+        categories={availableCategoriesForAdd}
+        highlightCount={highlightCount}
+        cafeId={cafeId}
+        onItemUpdated={onItemUpdated}
       />
 
       <AlertDialog
@@ -1053,6 +1531,7 @@ export function CafeEditorForm({
       (cafe?.menu_items ?? []).map((item) => ({
         id: item.id,
         name: item.name,
+        description: item.description ?? "",
         category: item.menu_categories?.name ?? "",
         categoryId: item.category_id,
         price: item.price,
@@ -1060,6 +1539,8 @@ export function CafeEditorForm({
         imageUrl: item.image_url,
       }))
   )
+
+  const [showGlobalMenuCategories, setShowGlobalMenuCategories] = React.useState(true)
 
   function handleToggleHighlight(itemId: string, val: boolean) {
     setMenuItems((prev) =>
@@ -1109,6 +1590,12 @@ export function CafeEditorForm({
 
   function handleItemAdded(item: LocalMenuItem) {
     setMenuItems((prev) => [...prev, item])
+  }
+
+  function handleItemUpdated(updatedItem: LocalMenuItem) {
+    setMenuItems((prev) =>
+      prev.map((item) => (item.id === updatedItem.id ? updatedItem : item))
+    )
   }
 
   // --- Photos ---
@@ -1296,6 +1783,7 @@ export function CafeEditorForm({
           ...payload,
           menuItems: menuItems.map((item) => ({
             name: item.name,
+            description: item.description.trim() || null,
             price: item.price,
             category_id: item.categoryId,
             is_highlight: item.isHighlight,
@@ -1303,7 +1791,18 @@ export function CafeEditorForm({
           })),
         })
       } else {
-        await updateCafeAction(cafe!.id, payload)
+        await updateCafeAction(cafe!.id, {
+          ...payload,
+          menuItems: menuItems.map((item) => ({
+            id: item.id,
+            name: item.name,
+            description: item.description.trim() || null,
+            price: item.price,
+            category_id: item.categoryId,
+            is_highlight: item.isHighlight,
+            image_url: item.imageUrl,
+          })),
+        })
       }
     } catch (err: unknown) {
       setSaveError(parseSaveError(err))
@@ -1699,20 +2198,43 @@ export function CafeEditorForm({
             </Card>
 
             {/* CARDS 6A + 6B — Menu Categories + Menu Items */}
+            <div className="flex items-center justify-between rounded-lg border px-4 py-3">
+              <div className="flex flex-col gap-0.5">
+                <span className="text-sm font-medium">Show global menu categories</span>
+                <span className="text-xs text-muted-foreground">
+                  Hide global categories that do not have items yet
+                </span>
+              </div>
+              <Switch
+                checked={showGlobalMenuCategories}
+                onCheckedChange={setShowGlobalMenuCategories}
+                disabled={disabled}
+              />
+            </div>
+
             <MenuCategoriesCard
               categories={menuCategories}
+              items={menuItems}
+              showGlobalCategories={showGlobalMenuCategories}
               cafeId={cafe?.id}
               onCategoryAdded={(cat) => setMenuCategories((prev) => [...prev, cat])}
+              onCategoryUpdated={(updated) =>
+                setMenuCategories((prev) =>
+                  prev.map((cat) => (cat.id === updated.id ? updated : cat))
+                )
+              }
               onDeleteCategory={handleDeleteCategory}
               disabled={disabled}
             />
             <MenuItemsCard
               items={menuItems}
               categories={menuCategories}
+              showGlobalCategories={showGlobalMenuCategories}
               cafeId={cafe?.id}
               onToggleHighlight={handleToggleHighlight}
               onDeleteItem={handleDeleteItem}
               onItemAdded={handleItemAdded}
+              onItemUpdated={handleItemUpdated}
               onImageUploaded={handleImageUploaded}
               onImageDeleted={handleImageDeleted}
               disabled={disabled}

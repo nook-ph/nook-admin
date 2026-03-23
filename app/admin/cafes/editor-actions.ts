@@ -8,6 +8,7 @@ import {
   upsertMenuItem,
   deleteMenuItem,
   createMenuCategory,
+  updateMenuCategory,
   deleteMenuCategory,
   assignDraftCategoriesToCafe,
 } from "@/lib/queries/menu"
@@ -29,6 +30,7 @@ export async function createCafeAction(payload: {
   featuredTagId: string | null
   menuItems?: {
     name: string
+    description?: string | null
     price: number
     category_id: string
     is_highlight: boolean
@@ -51,6 +53,7 @@ export async function createCafeAction(payload: {
         upsertMenuItem({
           cafe_id: cafe.id,
           name: item.name,
+          description: item.description ?? null,
           price: item.price,
           category_id: item.category_id,
           is_highlight: item.is_highlight,
@@ -71,7 +74,9 @@ export async function updateCafeAction(
     tagIds?: string[]
     featuredTagId?: string | null
     menuItems?: {
+      id?: string
       name: string
+      description?: string | null
       price: number
       category_id: string
       is_highlight: boolean
@@ -79,8 +84,26 @@ export async function updateCafeAction(
     }[]
   }
 ) {
-  const { tagIds, featuredTagId, menuItems: _menuItems, ...cafePayload } = payload
+  const { tagIds, featuredTagId, menuItems = [], ...cafePayload } = payload
   await updateCafe(id, cafePayload)
+
+  if (menuItems.length > 0) {
+    await Promise.all(
+      menuItems.map((item) =>
+        upsertMenuItem({
+          id: item.id,
+          cafe_id: id,
+          name: item.name,
+          description: item.description ?? null,
+          price: item.price,
+          category_id: item.category_id,
+          is_highlight: item.is_highlight,
+          image_url: item.image_url ?? null,
+        })
+      )
+    )
+  }
+
   if (tagIds !== undefined) {
     await setCafeTags(id, tagIds, featuredTagId ?? null)
   }
@@ -102,6 +125,7 @@ export async function upsertMenuItemAction(item: {
   id?: string
   cafe_id: string
   name: string
+  description?: string | null
   price: number
   category_id: string
   is_highlight: boolean
@@ -122,6 +146,20 @@ export async function createMenuCategoryAction(category: {
     is_global: category.is_global,
     created_by: category.is_global ? null : category.cafeId,
   })
+  if (category.cafeId) revalidatePath(`/admin/cafes/${category.cafeId}/edit`)
+  return { id: data.id, name: data.name, is_global: data.is_global }
+}
+
+export async function updateMenuCategoryAction(category: {
+  id: string
+  name: string
+  cafeId?: string
+}) {
+  const data = await updateMenuCategory({
+    id: category.id,
+    name: category.name,
+  })
+  revalidatePath("/admin/cafes")
   if (category.cafeId) revalidatePath(`/admin/cafes/${category.cafeId}/edit`)
   return { id: data.id, name: data.name, is_global: data.is_global }
 }

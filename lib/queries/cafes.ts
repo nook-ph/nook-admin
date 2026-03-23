@@ -63,7 +63,7 @@ export async function getCafeById(id: string) {
       *,
       cafe_tags ( tag_id, is_featured ),
       menu_items (
-        id, name, price, is_highlight,
+        id, name, description, price, is_highlight,
         image_url, category_id,
         menu_categories ( id, name )
       ),
@@ -124,7 +124,7 @@ export async function getCafeForOwner(ownerUserId: string) {
         *,
         cafe_tags ( tag_id, is_featured, tags (*) ),
         menu_items (
-          id, name, price, is_highlight,
+          id, name, description, price, is_highlight,
           image_url, category_id,
           menu_categories ( id, name, is_global )
         )
