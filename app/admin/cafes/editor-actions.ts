@@ -27,7 +27,7 @@ export async function createCafeAction(payload: {
   is_new: boolean
   is_featured: boolean
   tagIds: string[]
-  featuredTagId: string | null
+  featuredTagIds: string[]
   menuItems?: {
     name: string
     description?: string | null
@@ -37,10 +37,10 @@ export async function createCafeAction(payload: {
     image_url?: string | null
   }[]
 }) {
-  const { tagIds, featuredTagId, menuItems = [], ...cafePayload } = payload
+  const { tagIds, featuredTagIds, menuItems = [], ...cafePayload } = payload
   const cafe = await createCafe(cafePayload)
 
-  if (tagIds.length > 0) await setCafeTags(cafe.id, tagIds, featuredTagId)
+  if (tagIds.length > 0) await setCafeTags(cafe.id, tagIds, featuredTagIds)
 
   if (menuItems.length > 0) {
     await assignDraftCategoriesToCafe(
@@ -72,7 +72,7 @@ export async function updateCafeAction(
   id: string,
   payload: Partial<Cafe> & {
     tagIds?: string[]
-    featuredTagId?: string | null
+    featuredTagIds?: string[]
     menuItems?: {
       id?: string
       name: string
@@ -84,7 +84,7 @@ export async function updateCafeAction(
     }[]
   }
 ) {
-  const { tagIds, featuredTagId, menuItems = [], ...cafePayload } = payload
+  const { tagIds, featuredTagIds, menuItems = [], ...cafePayload } = payload
   await updateCafe(id, cafePayload)
 
   if (menuItems.length > 0) {
@@ -105,7 +105,7 @@ export async function updateCafeAction(
   }
 
   if (tagIds !== undefined) {
-    await setCafeTags(id, tagIds, featuredTagId ?? null)
+    await setCafeTags(id, tagIds, featuredTagIds ?? [])
   }
   revalidatePath("/admin/cafes")
   revalidatePath(`/admin/cafes/${id}`)
@@ -115,9 +115,9 @@ export async function updateCafeAction(
 export async function updateCafeTagsAction(
   cafeId: string,
   tagIds: string[],
-  featuredTagId: string | null
+  featuredTagIds: string[]
 ) {
-  await setCafeTags(cafeId, tagIds, featuredTagId)
+  await setCafeTags(cafeId, tagIds, featuredTagIds)
   revalidatePath(`/admin/cafes/${cafeId}/edit`)
 }
 

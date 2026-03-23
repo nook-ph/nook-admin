@@ -1502,14 +1502,37 @@ export function CafeEditorForm({
   const [selectedTags, setSelectedTags] = React.useState<Set<string>>(
     () => new Set(cafe?.cafe_tags?.map((t) => t.tag_id) ?? [])
   )
-  const [featuredTag, setFeaturedTag] = React.useState<string>(
-    () => cafe?.cafe_tags?.find((t) => t.is_featured)?.tag_id ?? ""
+  const [featuredTags, setFeaturedTags] = React.useState<Set<string>>(
+    () =>
+      new Set(
+        cafe?.cafe_tags?.filter((t) => t.is_featured).map((t) => t.tag_id) ?? []
+      )
   )
 
   const tagGroups = React.useMemo(() => groupTagsByCategory(tags), [tags])
 
   function toggleTag(tagId: string) {
     setSelectedTags((prev) => {
+      const next = new Set(prev)
+      const isRemoving = next.has(tagId)
+      isRemoving ? next.delete(tagId) : next.add(tagId)
+
+      if (isRemoving) {
+        setFeaturedTags((prevFeatured) => {
+          if (!prevFeatured.has(tagId)) return prevFeatured
+          const nextFeatured = new Set(prevFeatured)
+          nextFeatured.delete(tagId)
+          return nextFeatured
+        })
+      }
+
+      return next
+    })
+  }
+
+  function toggleFeaturedTag(tagId: string) {
+    if (!selectedTags.has(tagId)) return
+    setFeaturedTags((prev) => {
       const next = new Set(prev)
       next.has(tagId) ? next.delete(tagId) : next.add(tagId)
       return next
@@ -1776,7 +1799,7 @@ export function CafeEditorForm({
         is_new: flagNew,
         is_featured: flagFeatured,
         tagIds: Array.from(selectedTags),
-        featuredTagId: featuredTag || null,
+        featuredTagIds: Array.from(featuredTags),
       }
       if (mode === "create") {
         await createCafeAction({
@@ -2179,20 +2202,40 @@ export function CafeEditorForm({
                   </div>
                 ))}
 
-                <div className="flex flex-col gap-1.5 mt-6">
-                  <FieldLabel>Featured tag (shown on cafe cards)</FieldLabel>
-                  <Select value={featuredTag} onValueChange={setFeaturedTag} disabled={disabled}>
-                    <SelectTrigger className="w-full">
-                      <SelectValue placeholder="Select one tag..." />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {tags.map((tag) => (
-                        <SelectItem key={tag.id} value={tag.id}>
-                          {tag.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                <div className="flex flex-col gap-2 mt-6">
+                  <FieldLabel>Featured tags (shown on cafe cards)</FieldLabel>
+                  <p className="text-xs text-muted-foreground">
+                    Choose one or more featured tags from your selected tags.
+                  </p>
+                  {tags.filter((tag) => selectedTags.has(tag.id)).length > 0 ? (
+                    <div className="flex flex-wrap gap-2">
+                      {tags
+                        .filter((tag) => selectedTags.has(tag.id))
+                        .map((tag) => {
+                          const isFeatured = featuredTags.has(tag.id)
+                          return (
+                            <Button
+                              key={tag.id}
+                              variant="outline"
+                              size="sm"
+                              onClick={() => toggleFeaturedTag(tag.id)}
+                              disabled={disabled}
+                              className={
+                                isFeatured
+                                  ? "bg-primary text-primary-foreground border-primary"
+                                  : ""
+                              }
+                            >
+                              {tag.name}
+                            </Button>
+                          )
+                        })}
+                    </div>
+                  ) : (
+                    <p className="text-xs text-muted-foreground">
+                      Select at least one tag first.
+                    </p>
+                  )}
                 </div>
               </CardContent>
             </Card>
