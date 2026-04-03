@@ -113,9 +113,17 @@ export async function deleteTag(id: string): Promise<void> {
 export async function setCafeTags(
   cafeId: string,
   tagIds: string[],
-  featuredTagId: string | null
+  featuredTagIds: string[] | string | null
 ) {
   const supabase = createAdminClient()
+
+  const featuredTagIdSet = new Set(
+    Array.isArray(featuredTagIds)
+      ? featuredTagIds
+      : featuredTagIds
+        ? [featuredTagIds]
+        : []
+  )
 
   await supabase.from("cafe_tags").delete().eq("cafe_id", cafeId)
 
@@ -125,7 +133,7 @@ export async function setCafeTags(
     tagIds.map((tagId) => ({
       cafe_id: cafeId,
       tag_id: tagId,
-      is_featured: tagId === featuredTagId,
+      is_featured: featuredTagIdSet.has(tagId),
     }))
   )
 
