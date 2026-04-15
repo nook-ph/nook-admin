@@ -2386,10 +2386,12 @@ export function CafeEditorForm({
                 <CardHeader>
                   <CardTitle>Status</CardTitle>
                 </CardHeader>
-                <CardContent>
+                <CardContent className="space-y-4">
                   <Select
                     value={listingStatus}
-                    onValueChange={setListingStatus}
+                    onValueChange={(value) =>
+                      setListingStatus(value as "draft" | "active" | "inactive")
+                    }
                     disabled={disabled}
                   >
                     <SelectTrigger className="w-full">
@@ -2401,6 +2403,20 @@ export function CafeEditorForm({
                       <SelectItem value="inactive">Inactive</SelectItem>
                     </SelectContent>
                   </Select>
+
+                  <div className="flex items-center justify-between">
+                    <div className="flex flex-col gap-0.5">
+                      <span className="text-sm font-medium">isFeatured</span>
+                      <span className="text-xs text-muted-foreground">
+                        Marks this cafe as featured
+                      </span>
+                    </div>
+                    <Switch
+                      checked={flagFeatured}
+                      onCheckedChange={setFlagFeatured}
+                      disabled={disabled}
+                    />
+                  </div>
                 </CardContent>
               </Card>
 
@@ -2420,19 +2436,6 @@ export function CafeEditorForm({
                     <Switch
                       checked={flagNew}
                       onCheckedChange={setFlagNew}
-                      disabled={disabled}
-                    />
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <div className="flex flex-col gap-0.5">
-                      <span className="text-sm font-medium">Featured</span>
-                      <span className="text-xs text-muted-foreground">
-                        Shown as home hero card
-                      </span>
-                    </div>
-                    <Switch
-                      checked={flagFeatured}
-                      onCheckedChange={setFlagFeatured}
                       disabled={disabled}
                     />
                   </div>

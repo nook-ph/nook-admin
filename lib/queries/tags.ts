@@ -1,6 +1,29 @@
 import { createClient } from "@/lib/supabase/server"
 import { createAdminClient } from "@/lib/supabase/admin"
 
+function getErrorMessage(error: unknown, fallback: string) {
+  if (error instanceof Error && error.message) return error.message
+
+  if (error && typeof error === "object") {
+    const maybeError = error as {
+      message?: unknown
+      details?: unknown
+      hint?: unknown
+      code?: unknown
+    }
+
+    if (typeof maybeError.message === "string" && maybeError.message) {
+      const extra = [maybeError.details, maybeError.hint]
+        .filter((part): part is string => typeof part === "string" && part.length > 0)
+        .join(" ")
+
+      return extra ? `${maybeError.message} ${extra}` : maybeError.message
+    }
+  }
+
+  return fallback
+}
+
 export type Tag = {
   id: string
   name: string
@@ -45,12 +68,18 @@ export async function createTag(payload: {
   icon_name?: string
 }): Promise<Tag> {
   const supabase = createAdminClient()
+  const normalizedName = payload.name.trim()
+  const normalizedCategory = payload.category.trim()
+  const normalizedIconName = payload.icon_name?.trim() || null
+
+  if (!normalizedName) throw new Error("Tag name is required")
+  if (!normalizedCategory) throw new Error("Category is required")
 
   // Put the new tag at the bottom of its category.
   const { data: existing } = await supabase
     .from("tags")
     .select("sort_order")
-    .eq("category", payload.category)
+    .eq("category", normalizedCategory)
     .order("sort_order", { ascending: false })
     .limit(1)
 
@@ -59,14 +88,22 @@ export async function createTag(payload: {
   const { data, error } = await supabase
     .from("tags")
     .insert({
-      ...payload,
+      name: normalizedName,
+      category: normalizedCategory,
+      icon_name: normalizedIconName,
       sort_order: nextOrder,
       is_active: true,
     })
     .select()
     .single()
 
-  if (error) throw error
+  if (error) {
+    if (error.code === "23505") {
+      throw new Error("A tag with the same name already exists")
+    }
+
+    throw new Error(getErrorMessage(error, "Failed to create tag"))
+  }
   return data as Tag
 }
 
@@ -87,7 +124,7 @@ export async function updateTag(
     .select()
     .single()
 
-  if (error) throw error
+  if (error) throw new Error(getErrorMessage(error, "Failed to update tag"))
   return data as Tag
 }
 
@@ -107,7 +144,7 @@ export async function deleteTag(id: string): Promise<void> {
 
   const { error } = await supabase.from("tags").delete().eq("id", id)
 
-  if (error) throw error
+  if (error) throw new Error(getErrorMessage(error, "Failed to delete tag"))
 }
 
 export async function setCafeTags(
@@ -137,5 +174,5 @@ export async function setCafeTags(
     }))
   )
 
-  if (error) throw error
+  if (error) throw new Error(getErrorMessage(error, "Failed to save cafe tags"))
 }
