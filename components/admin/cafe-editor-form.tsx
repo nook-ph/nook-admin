@@ -1469,11 +1469,61 @@ export function CafeEditorForm({
   const [addressInput, setAddressInput] = React.useState(cafe?.address ?? "")
   const [lat, setLat] = React.useState<number>(cafe?.lat ?? 10.3157)
   const [lng, setLng] = React.useState<number>(cafe?.lng ?? 123.8854)
+  const [latInput, setLatInput] = React.useState(
+    (cafe?.lat ?? 10.3157).toFixed(6)
+  )
+  const [lngInput, setLngInput] = React.useState(
+    (cafe?.lng ?? 123.8854).toFixed(6)
+  )
 
-  const handleMapChange = React.useCallback((newLat: number, newLng: number) => {
+  const syncCoordinates = React.useCallback((newLat: number, newLng: number) => {
     setLat(newLat)
     setLng(newLng)
+    setLatInput(newLat.toFixed(6))
+    setLngInput(newLng.toFixed(6))
   }, [])
+
+  const handleMapChange = React.useCallback((newLat: number, newLng: number) => {
+    syncCoordinates(newLat, newLng)
+  }, [syncCoordinates])
+
+  function handleLatInputChange(value: string) {
+    setLatInput(value)
+    const parsed = Number(value)
+    if (value.trim().length === 0) return
+    if (Number.isFinite(parsed) && parsed >= -90 && parsed <= 90) {
+      setLat(parsed)
+    }
+  }
+
+  function handleLngInputChange(value: string) {
+    setLngInput(value)
+    const parsed = Number(value)
+    if (value.trim().length === 0) return
+    if (Number.isFinite(parsed) && parsed >= -180 && parsed <= 180) {
+      setLng(parsed)
+    }
+  }
+
+  function commitLatInput() {
+    const parsed = Number(latInput)
+    if (Number.isFinite(parsed) && parsed >= -90 && parsed <= 90) {
+      setLat(parsed)
+      setLatInput(parsed.toFixed(6))
+      return
+    }
+    setLatInput(lat.toFixed(6))
+  }
+
+  function commitLngInput() {
+    const parsed = Number(lngInput)
+    if (Number.isFinite(parsed) && parsed >= -180 && parsed <= 180) {
+      setLng(parsed)
+      setLngInput(parsed.toFixed(6))
+      return
+    }
+    setLngInput(lng.toFixed(6))
+  }
 
   // --- Social Links ---
   const [instagram, setInstagram] = React.useState(cafe?.social_links?.instagram ?? "")
@@ -1928,7 +1978,7 @@ export function CafeEditorForm({
               <CardContent className="flex flex-col gap-4">
                 <div className="space-y-2">
                   <label className="text-sm font-medium leading-none">
-                    Address
+                    Search Address (Mapbox)
                   </label>
                   <SearchBox
                     accessToken={process.env.NEXT_PUBLIC_MAPBOX_TOKEN!}
@@ -1948,8 +1998,10 @@ export function CafeEditorForm({
                         feature.properties.place_name ??
                         ""
                       )
-                      setLat(parseFloat(retrievedLat.toFixed(6)))
-                      setLng(parseFloat(retrievedLng.toFixed(6)))
+                      syncCoordinates(
+                        parseFloat(retrievedLat.toFixed(6)),
+                        parseFloat(retrievedLng.toFixed(6))
+                      )
                     }}
                     options={{
                       country: "PH",
@@ -1981,6 +2033,15 @@ export function CafeEditorForm({
                   />
                 </div>
 
+                <FieldGroup label="Manual address">
+                  <Input
+                    placeholder="Type exact street address"
+                    value={addressInput}
+                    onChange={(e) => setAddressInput(e.target.value)}
+                    disabled={disabled}
+                  />
+                </FieldGroup>
+
                 <MapPicker
                   lat={lat}
                   lng={lng}
@@ -1991,20 +2052,35 @@ export function CafeEditorForm({
                 <div className="mt-3 grid grid-cols-2 gap-3">
                   <div className="flex flex-col gap-1">
                     <p className="text-xs text-muted-foreground">Latitude</p>
-                    <p className="rounded-md bg-muted px-3 py-2 font-mono text-sm">
-                      {lat.toFixed(6)}
-                    </p>
+                    <Input
+                      type="number"
+                      step="0.000001"
+                      min="-90"
+                      max="90"
+                      value={latInput}
+                      onChange={(e) => handleLatInputChange(e.target.value)}
+                      onBlur={commitLatInput}
+                      disabled={disabled}
+                    />
                   </div>
                   <div className="flex flex-col gap-1">
                     <p className="text-xs text-muted-foreground">Longitude</p>
-                    <p className="rounded-md bg-muted px-3 py-2 font-mono text-sm">
-                      {lng.toFixed(6)}
-                    </p>
+                    <Input
+                      type="number"
+                      step="0.000001"
+                      min="-180"
+                      max="180"
+                      value={lngInput}
+                      onChange={(e) => handleLngInputChange(e.target.value)}
+                      onBlur={commitLngInput}
+                      disabled={disabled}
+                    />
                   </div>
                 </div>
 
                 <p className="mt-2 text-xs text-muted-foreground">
-                  Drag the pin or click anywhere on the map to set the exact location. Coordinates update automatically.
+                  Use search, manual address, or drag the map pin. You can also
+                  type exact coordinates directly.
                 </p>
               </CardContent>
             </Card>
