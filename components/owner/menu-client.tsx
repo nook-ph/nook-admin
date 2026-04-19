@@ -50,6 +50,7 @@ import {
   uploadMenuItemImageAction,
   deleteMenuItemImageAction,
 } from "@/app/actions/upload"
+import imageCompression from "browser-image-compression"
 
 type Category = {
   id: string
@@ -73,6 +74,15 @@ type NewItem = {
   price: string
   categoryId: string
   is_highlight: boolean
+}
+
+async function compressImage(file: File): Promise<File> {
+  return imageCompression(file, {
+    maxSizeMB: 0.3,
+    maxWidthOrHeight: 1920,
+    useWebWorker: true,
+    fileType: "image/webp",
+  })
 }
 
 function ItemRow({
@@ -295,8 +305,9 @@ export function OwnerMenuClient({
       let imageUrl: string | null = null
       if (isHighlight && pendingImageFile) {
         try {
+          const compressed = await compressImage(pendingImageFile)
           const formData = new FormData()
-          formData.append("file", pendingImageFile)
+          formData.append("file", compressed)
           const { url } = await uploadMenuItemImageAction(formData, newId, cafeId)
           imageUrl = url
         } catch {
@@ -326,8 +337,9 @@ export function OwnerMenuClient({
   }
 
   async function handleItemImageUpload(id: string, file: File) {
+    const compressed = await compressImage(file)
     const formData = new FormData()
-    formData.append("file", file)
+    formData.append("file", compressed)
     setUploadingItemId(id)
     setUploadError("")
     try {
@@ -707,7 +719,7 @@ export function OwnerMenuClient({
                     <>
                       <UploadSimple size={20} />
                       <span className="text-sm">Click to upload</span>
-                      <span className="text-xs">JPG, PNG, WEBP · Max 5MB</span>
+                      <span className="text-xs">JPG, PNG, WEBP · Max 10MB</span>
                     </>
                   )}
                 </div>

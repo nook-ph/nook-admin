@@ -94,7 +94,7 @@ import imageCompression from "browser-image-compression"
 
 async function compressImage(file: File): Promise<File> {
   return imageCompression(file, {
-    maxSizeMB: 0.5,
+    maxSizeMB: 0.3,
     maxWidthOrHeight: 1920,
     useWebWorker: true,
     fileType: "image/webp",
@@ -769,7 +769,7 @@ function AddItemDialog({
                 ) : (
                   <>
                     <span className="text-sm">Click to upload</span>
-                    <span className="text-xs">JPG, PNG or WEBP · Max 5MB</span>
+                    <span className="text-xs">JPG, PNG or WEBP · Max 10MB</span>
                   </>
                 )}
               </div>
@@ -1006,7 +1006,7 @@ function EditItemDialog({
                   ) : (
                     <>
                       <span className="text-sm">Click to upload</span>
-                      <span className="text-xs">JPG, PNG or WEBP · Max 5MB</span>
+                      <span className="text-xs">JPG, PNG or WEBP · Max 10MB</span>
                     </>
                   )}
                 </div>

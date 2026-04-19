@@ -36,6 +36,7 @@ import {
   uploadCafePhotoAction,
   deleteCafePhotoAction,
 } from "@/app/actions/upload"
+import imageCompression from "browser-image-compression"
 
 const TOTAL_SLOTS = 5
 
@@ -45,6 +46,15 @@ const TIPS = [
   "Landscape photos look better on cafe cards and the map preview",
   "Update your hero photo seasonally to keep your listing feeling fresh",
 ]
+
+async function compressImage(file: File): Promise<File> {
+  return imageCompression(file, {
+    maxSizeMB: 0.3,
+    maxWidthOrHeight: 1920,
+    useWebWorker: true,
+    fileType: "image/webp",
+  })
+}
 
 export function OwnerPhotosClient({
   heroUrl,
@@ -75,8 +85,10 @@ export function OwnerPhotosClient({
     const file = e.target.files?.[0]
     if (!file) return
 
+    const compressed = await compressImage(file)
+
     const formData = new FormData()
-    formData.append("file", file)
+    formData.append("file", compressed)
 
     setIsUploading(true)
     setUploadError("")
@@ -204,7 +216,7 @@ export function OwnerPhotosClient({
                   <p className="text-xs text-muted-foreground">Requirements:</p>
                   <ul className="text-xs text-muted-foreground space-y-0.5 list-disc list-inside">
                     <li>JPG, PNG, or WEBP format</li>
-                    <li>Maximum 5MB file size</li>
+                    <li>Maximum 10MB file size</li>
                     <li>Landscape orientation recommended</li>
                     <li>Minimum 800px wide</li>
                   </ul>
