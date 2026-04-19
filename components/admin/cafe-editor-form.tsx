@@ -90,6 +90,16 @@ import {
   uploadMenuItemImageAction,
   deleteMenuItemImageAction,
 } from "@/app/actions/upload"
+import imageCompression from "browser-image-compression"
+
+async function compressImage(file: File): Promise<File> {
+  return imageCompression(file, {
+    maxSizeMB: 0.5,
+    maxWidthOrHeight: 1920,
+    useWebWorker: true,
+    fileType: "image/webp",
+  })
+}
 
 // ---------------------------------------------------------------------------
 // Types
@@ -253,10 +263,11 @@ function MenuItemRow({
   const inputRef = React.useRef<HTMLInputElement>(null)
   const atHighlightCap = highlightCount >= 5 && !item.isHighlight
 
-  function handleFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
+  async function handleFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
     if (!file) return
-    onImageUpload(item.id, file)
+    const compressed = await compressImage(file)
+    onImageUpload(item.id, compressed)
     e.target.value = ""
   }
 
@@ -1216,8 +1227,9 @@ function MenuItemsCard({
 
   async function handleImageUpload(id: string, file: File) {
     if (!cafeId) return
+    const compressed = await compressImage(file)
     const formData = new FormData()
-    formData.append("file", file)
+    formData.append("file", compressed)
     setUploadingItemId(id)
     setUploadError("")
     try {
@@ -1693,8 +1705,9 @@ export function CafeEditorForm({
     const file = e.target.files?.[0]
     if (!file || !cafe?.id) return
 
+    const compressed = await compressImage(file)
     const formData = new FormData()
-    formData.append("file", file)
+    formData.append("file", compressed)
 
     setIsUploadingPhoto(true)
     setPhotoUploadError("")
@@ -1951,18 +1964,12 @@ export function CafeEditorForm({
                 <FieldGroup label="Description">
                   <Textarea
                     placeholder="A short description of the cafe..."
-                    maxLength={300}
                     value={description}
                     onChange={(e) => setDescription(e.target.value)}
                     className="resize-none"
                     rows={4}
                     disabled={disabled}
                   />
-                  <div className="flex justify-end">
-                    <span className="text-xs text-muted-foreground">
-                      {description.length} / 300
-                    </span>
-                  </div>
                 </FieldGroup>
               </CardContent>
             </Card>

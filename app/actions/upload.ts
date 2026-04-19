@@ -6,7 +6,7 @@ import { revalidatePath }    from "next/cache"
 
 const CAFE_PHOTO_LIMIT = 5
 const ALLOWED_TYPES    = ["image/jpeg", "image/png", "image/webp"]
-const MAX_SIZE_BYTES   = 5 * 1024 * 1024
+const MAX_SIZE_BYTES   = 1 * 1024 * 1024
 
 function requireCafeId(cafeId: string | undefined): string {
   if (!cafeId) throw new Error("cafeId is required")
@@ -17,7 +17,7 @@ function validateFile(file: File) {
   if (!ALLOWED_TYPES.includes(file.type))
     throw new Error("Only JPG, PNG, and WEBP are allowed")
   if (file.size > MAX_SIZE_BYTES)
-    throw new Error("File must be under 5MB")
+    throw new Error("File must be under 1MB")
 }
 
 // ── CAFE HERO PHOTO ───────────────────────────────────
