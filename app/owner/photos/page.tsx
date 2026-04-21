@@ -2,8 +2,7 @@ import { getOwnerCafe } from "@/lib/owner/get-owner-cafe"
 import { OwnerPhotosClient } from "@/components/owner/photos-client"
 
 export default async function OwnerPhotosPage() {
-  const ownerData = await getOwnerCafe()
-  const cafe = ownerData.cafes as NonNullable<typeof ownerData.cafes>
+  const cafe = await getOwnerCafe()
 
   return (
     <OwnerPhotosClient

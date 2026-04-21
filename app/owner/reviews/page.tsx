@@ -3,8 +3,7 @@ import { getReviewsForCafe } from "@/lib/queries/reviews"
 import { OwnerReviewsClient } from "@/components/owner/reviews-client"
 
 export default async function OwnerReviewsPage() {
-  const ownerData = await getOwnerCafe()
-  const cafe = ownerData.cafes as NonNullable<typeof ownerData.cafes>
+  const cafe = await getOwnerCafe()
   const reviews = await getReviewsForCafe(cafe.id)
 
   return (

@@ -1,5 +1,16 @@
 import { createAdminClient } from "@/lib/supabase/admin"
 
+type LinkedCafe = {
+  owner_id: string
+  role: string
+  cafes: {
+    id: string
+    name: string
+    neighborhood: string
+    status: string
+  } | null
+}
+
 export async function getOwners() {
   const supabase = createAdminClient()
 
@@ -18,12 +29,24 @@ export async function getOwners() {
       cafes ( id, name, neighborhood, status )
     `)
 
+  const normalizedLinks: LinkedCafe[] = (links ?? []).map((link: any) => {
+    const cafe = Array.isArray(link.cafes)
+      ? (link.cafes[0] ?? null)
+      : (link.cafes ?? null)
+
+    return {
+      owner_id: link.owner_id,
+      role: link.role,
+      cafes: cafe,
+    }
+  })
+
   return owners.map(user => ({
     id:               user.id,
     email:            user.email,
     created_at:       user.created_at,
     last_sign_in_at:  user.last_sign_in_at,
-    linked_cafes:     links?.filter(
+    linked_cafes:     normalizedLinks.filter(
                         l => l.owner_id === user.id
                       ) ?? [],
   }))

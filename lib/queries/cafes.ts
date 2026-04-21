@@ -116,21 +116,27 @@ export async function updateCafe(id: string, payload: Partial<Cafe>) {
 
 export async function getCafeForOwner(ownerUserId: string) {
   const supabase = await createClient()
-  const { data, error } = await supabase
+
+  const { data: link } = await supabase
     .from("cafe_owner_cafe")
+    .select("cafe_id")
+    .eq("owner_id", ownerUserId)
+    .maybeSingle()
+
+  if (!link) return null
+
+  const { data, error } = await supabase
+    .from("cafes")
     .select(`
-      cafe_id, role,
-      cafes (
-        *,
-        cafe_tags ( tag_id, is_featured, tags (*) ),
-        menu_items (
-          id, name, description, price, is_highlight,
-          image_url, category_id,
-          menu_categories ( id, name, is_global )
-        )
+      *,
+      cafe_tags ( tag_id, is_featured, tags (*) ),
+      menu_items (
+        id, name, description, price, is_highlight,
+        image_url, category_id,
+        menu_categories ( id, name, is_global )
       )
     `)
-    .eq("owner_id", ownerUserId)
+    .eq("id", link.cafe_id)
     .maybeSingle()
 
   if (error) throw error

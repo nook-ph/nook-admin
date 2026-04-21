@@ -3,8 +3,7 @@ import { getCategoriesForCafe } from "@/lib/queries/menu"
 import { OwnerMenuClient } from "@/components/owner/menu-client"
 
 export default async function OwnerMenuPage() {
-  const ownerData = await getOwnerCafe()
-  const cafe = ownerData.cafes as NonNullable<typeof ownerData.cafes>
+  const cafe = await getOwnerCafe()
   const categories = await getCategoriesForCafe(cafe.id)
 
   return (

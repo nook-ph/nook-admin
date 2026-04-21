@@ -7,8 +7,8 @@ export async function getOwnerCafe() {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect("/login")
 
-  const data = await getCafeForOwner(user.id)
-  if (!data) redirect("/login")
+  const cafe = await getCafeForOwner(user.id)
+  if (!cafe) redirect("/login")
 
-  return data
+  return cafe
 }

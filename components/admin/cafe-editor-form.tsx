@@ -1987,57 +1987,56 @@ export function CafeEditorForm({
                   <label className="text-sm font-medium leading-none">
                     Search Address (Mapbox)
                   </label>
-                  <SearchBox
-                    accessToken={process.env.NEXT_PUBLIC_MAPBOX_TOKEN!}
-                    value={addressInput}
-                    onChange={(value) => {
-                      setAddressInput(value)
-                    }}
-                    onRetrieve={(res) => {
-                      const feature = res.features[0]
-                      if (!feature) return
+                  <div className={disabled ? "pointer-events-none opacity-50" : undefined}>
+                    <SearchBox
+                      accessToken={process.env.NEXT_PUBLIC_MAPBOX_TOKEN!}
+                      value={addressInput}
+                      onChange={(value) => {
+                        setAddressInput(value)
+                      }}
+                      onRetrieve={(res) => {
+                        const feature = res.features[0]
+                        if (!feature) return
 
-                      const [retrievedLng, retrievedLat] =
-                        feature.geometry.coordinates
+                        const [retrievedLng, retrievedLat] =
+                          feature.geometry.coordinates
 
-                      setAddressInput(
-                        feature.properties.full_address ??
-                        feature.properties.place_name ??
-                        ""
-                      )
-                      syncCoordinates(
-                        parseFloat(retrievedLat.toFixed(6)),
-                        parseFloat(retrievedLng.toFixed(6))
-                      )
-                    }}
-                    options={{
-                      country: "PH",
-                      language: "en",
-                      limit: 5,
-                      types: [
-                        "place",
-                        "locality",
-                        "neighborhood",
-                        "address",
-                        "poi",
-                        "street",
-                      ],
-                    }}
-                    placeholder="Search for an address or place..."
-                    theme={{
-                      variables: {
-                        borderRadius: "var(--radius)",
-                        fontFamily: "var(--font-sans)",
-                        colorBackground: "var(--background)",
-                        colorBackgroundHover: "var(--muted)",
-                        colorText: "var(--foreground)",
-                        colorSecondary: "var(--muted-foreground)",
-                        colorBorder: "var(--border)",
-                        boxShadow: "var(--shadow-sm)",
-                      },
-                    }}
-                    disabled={disabled}
-                  />
+                        setAddressInput(
+                          feature.properties.full_address ??
+                          feature.properties.name ??
+                          ""
+                        )
+                        syncCoordinates(
+                          parseFloat(retrievedLat.toFixed(6)),
+                          parseFloat(retrievedLng.toFixed(6))
+                        )
+                      }}
+                      options={{
+                        country: "PH",
+                        language: "en",
+                        limit: 5,
+                        types: new Set([
+                          "place",
+                          "locality",
+                          "neighborhood",
+                          "address",
+                          "street",
+                        ] as const),
+                      }}
+                      placeholder="Search for an address or place..."
+                      theme={{
+                        variables: {
+                          borderRadius: "var(--radius)",
+                          fontFamily: "var(--font-sans)",
+                          colorBackground: "var(--background)",
+                          colorBackgroundHover: "var(--muted)",
+                          colorText: "var(--foreground)",
+                          colorSecondary: "var(--muted-foreground)",
+                          boxShadow: "var(--shadow-sm)",
+                        },
+                      }}
+                    />
+                  </div>
                 </div>
 
                 <FieldGroup label="Manual address">

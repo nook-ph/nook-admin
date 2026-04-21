@@ -3,13 +3,11 @@ import { getAllTags } from "@/lib/queries/tags"
 import { OwnerTagsClient } from "@/components/owner/tags-client"
 
 export default async function OwnerTagsPage() {
-  const [ownerData, allTags] = await Promise.all([
+  const [cafe, allTags] = await Promise.all([
     getOwnerCafe(),
     getAllTags(false),
   ])
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const cafe = ownerData.cafes as any
-  const appliedTags = (cafe?.cafe_tags as { tag_id: string; is_featured: boolean }[] | null) ?? []
+  const appliedTags = (cafe.cafe_tags as { tag_id: string; is_featured: boolean }[] | null) ?? []
 
   return (
     <OwnerTagsClient

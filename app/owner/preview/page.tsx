@@ -21,8 +21,7 @@ import { getOwnerCafe } from "@/lib/owner/get-owner-cafe"
 import { getReviewsForCafe } from "@/lib/queries/reviews"
 
 export default async function OwnerPreviewPage() {
-  const ownerData = await getOwnerCafe()
-  const cafe = ownerData.cafes as NonNullable<typeof ownerData.cafes>
+  const cafe = await getOwnerCafe()
   const reviews = await getReviewsForCafe(cafe.id, { limit: 2 })
 
   const tags = (

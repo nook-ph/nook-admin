@@ -3,9 +3,15 @@
 import { revalidatePath } from "next/cache"
 import { createClient } from "@/lib/supabase/server"
 import { createAdminClient } from "@/lib/supabase/admin"
+import type { Cafe } from "@/lib/queries/cafes"
 import { updateCafe } from "@/lib/queries/cafes"
 import { setCafeTags } from "@/lib/queries/tags"
 import { upsertMenuItem, deleteMenuItem } from "@/lib/queries/menu"
+
+type UpdateProfilePayload = Partial<Pick<
+  Cafe,
+  "name" | "description" | "operating_hours" | "social_links"
+>>
 
 async function getOwnerCafeId(): Promise<string> {
   const supabase = await createClient()
@@ -22,12 +28,7 @@ async function getOwnerCafeId(): Promise<string> {
   return data.cafe_id
 }
 
-export async function updateProfileAction(payload: {
-  name?: string
-  description?: string
-  operating_hours?: object
-  social_links?: object
-}) {
+export async function updateProfileAction(payload: UpdateProfilePayload) {
   const cafeId = await getOwnerCafeId()
   await updateCafe(cafeId, payload)
   revalidatePath("/owner/profile")
