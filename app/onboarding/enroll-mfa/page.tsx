@@ -69,7 +69,7 @@ export default function OnboardingEnrollMfaPage() {
 
       if (enrollError?.message?.includes("already exists")) {
         const { data: factorsData } = await supabase.auth.mfa.listFactors()
-        const stale = factorsData?.totp?.find((f) => f.status === "unverified")
+        const stale = factorsData?.totp?.find((f) => f.status !== "verified")
         if (stale) {
           await supabase.auth.mfa.unenroll({ factorId: stale.id })
           const retry = await supabase.auth.mfa.enroll({ factorType: "totp" })
