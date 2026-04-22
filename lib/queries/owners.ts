@@ -14,20 +14,28 @@ type LinkedCafe = {
 export async function getOwners() {
   const supabase = createAdminClient()
 
-  const { data: { users }, error } =
-    await supabase.auth.admin.listUsers()
+  const [usersResult, linksResult] = await Promise.all([
+    supabase.auth.admin.listUsers(),
+    supabase
+      .from("cafe_owner_cafe")
+      .select(`
+        owner_id, role,
+        cafes ( id, name, neighborhood, status )
+      `),
+  ])
+
+  const {
+    data: { users },
+    error,
+  } = usersResult
   if (error) throw error
 
-  const owners = users.filter(
-    u => u.app_metadata?.role === "cafe_owner"
-  )
+  const { data: links, error: linksError } = linksResult
+  if (linksError) throw linksError
 
-  const { data: links } = await supabase
-    .from("cafe_owner_cafe")
-    .select(`
-      owner_id, role,
-      cafes ( id, name, neighborhood, status )
-    `)
+  const owners = users.filter(
+    (u) => u.app_metadata?.role === "cafe_owner"
+  )
 
   const normalizedLinks: LinkedCafe[] = (links ?? []).map((link: any) => {
     const cafe = Array.isArray(link.cafes)
@@ -41,14 +49,18 @@ export async function getOwners() {
     }
   })
 
-  return owners.map(user => ({
+  const linksByOwnerId = normalizedLinks.reduce<Record<string, LinkedCafe[]>>((acc, link) => {
+    if (!acc[link.owner_id]) acc[link.owner_id] = []
+    acc[link.owner_id].push(link)
+    return acc
+  }, {})
+
+  return owners.map((user) => ({
     id:               user.id,
     email:            user.email,
     created_at:       user.created_at,
     last_sign_in_at:  user.last_sign_in_at,
-    linked_cafes:     normalizedLinks.filter(
-                        l => l.owner_id === user.id
-                      ) ?? [],
+    linked_cafes:     linksByOwnerId[user.id] ?? [],
   }))
 }
 

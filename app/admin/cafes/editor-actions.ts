@@ -1,6 +1,6 @@
 "use server"
 
-import { revalidatePath } from "next/cache"
+import { revalidatePath, revalidateTag } from "next/cache"
 import { redirect } from "next/navigation"
 import { createCafe, updateCafe, type Cafe } from "@/lib/queries/cafes"
 import { setCafeTags } from "@/lib/queries/tags"
@@ -41,6 +41,7 @@ export async function createCafeAction(payload: {
   const cafe = await createCafe(cafePayload)
 
   if (tagIds.length > 0) await setCafeTags(cafe.id, tagIds, featuredTagIds)
+  revalidateTag("admin-tags")
 
   if (menuItems.length > 0) {
     await assignDraftCategoriesToCafe(
@@ -106,6 +107,7 @@ export async function updateCafeAction(
 
   if (tagIds !== undefined) {
     await setCafeTags(id, tagIds, featuredTagIds ?? [])
+    revalidateTag("admin-tags")
   }
   revalidatePath("/admin/cafes")
   revalidatePath(`/admin/cafes/${id}`)
@@ -118,6 +120,7 @@ export async function updateCafeTagsAction(
   featuredTagIds: string[]
 ) {
   await setCafeTags(cafeId, tagIds, featuredTagIds)
+  revalidateTag("admin-tags")
   revalidatePath(`/admin/cafes/${cafeId}/edit`)
 }
 
