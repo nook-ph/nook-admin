@@ -29,6 +29,29 @@ export type Cafe = {
   created_at: string
 }
 
+export type OwnerCafeContext = {
+  cafeId: string
+  cafeName: string
+  status: "draft" | "active" | "inactive"
+}
+
+export type OwnerDashboardCafe = {
+  id: string
+  name: string
+  status: "draft" | "active" | "inactive"
+  rating: number | null
+  review_count: number
+  featured_image_url: string | null
+  neighborhood: string | null
+  city: string
+}
+
+export type OwnerPhotosCafe = {
+  id: string
+  featured_image_url: string | null
+  photo_urls: string[]
+}
+
 export async function getCafes(filters?: {
   status?: string
   neighborhood?: string
@@ -141,6 +164,71 @@ export async function getCafeForOwner(ownerUserId: string) {
 
   if (error) throw error
   return data
+}
+
+export async function getOwnerCafeContextByOwnerUserId(
+  ownerUserId: string
+): Promise<OwnerCafeContext | null> {
+  const supabase = await createClient()
+
+  const { data: link, error: linkError } = await supabase
+    .from("cafe_owner_cafe")
+    .select("cafe_id")
+    .eq("owner_id", ownerUserId)
+    .maybeSingle()
+
+  if (linkError) throw linkError
+  if (!link) return null
+
+  const { data, error } = await supabase
+    .from("cafes")
+    .select("id, name, status")
+    .eq("id", link.cafe_id)
+    .maybeSingle()
+
+  if (error) throw error
+  if (!data) return null
+
+  return {
+    cafeId: data.id,
+    cafeName: data.name,
+    status: data.status,
+  }
+}
+
+export async function getOwnerDashboardCafeById(
+  cafeId: string
+): Promise<OwnerDashboardCafe> {
+  const supabase = await createClient()
+  const { data, error } = await supabase
+    .from("cafes")
+    .select(
+      "id, name, status, rating, review_count, featured_image_url, neighborhood, city"
+    )
+    .eq("id", cafeId)
+    .single()
+
+  if (error) throw error
+  return data as OwnerDashboardCafe
+}
+
+export async function getOwnerPhotosCafeById(
+  cafeId: string
+): Promise<OwnerPhotosCafe> {
+  const supabase = await createClient()
+  const { data, error } = await supabase
+    .from("cafes")
+    .select("id, featured_image_url, photo_urls")
+    .eq("id", cafeId)
+    .single()
+
+  if (error) throw error
+
+  return {
+    id: data.id,
+    featured_image_url: data.featured_image_url,
+    photo_urls: Array.isArray(data.photo_urls) ? data.photo_urls : [],
+  }
 }
 
 export async function getDashboardStats() {
