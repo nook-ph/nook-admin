@@ -1,6 +1,9 @@
+import type { Metadata } from "next"
 import { getOwnerCafe } from "@/lib/owner/get-owner-cafe"
 import { getAllTags } from "@/lib/queries/tags"
 import { OwnerTagsClient } from "@/components/owner/tags-client"
+
+export const metadata: Metadata = { title: "Tags" }
 
 export default async function OwnerTagsPage() {
   const [cafe, allTags] = await Promise.all([

@@ -1,3 +1,4 @@
+import type { Metadata } from "next"
 import { AdminSidebar } from "@/components/admin/sidebar"
 import { Separator } from "@/components/ui/separator"
 import {
@@ -5,6 +6,13 @@ import {
   SidebarProvider,
   SidebarTrigger,
 } from "@/components/ui/sidebar"
+
+export const metadata: Metadata = {
+  title: {
+    template: "%s | Nook Admin",
+    default: "Nook Admin",
+  },
+}
 
 export default function AdminLayout({
   children,

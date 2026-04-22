@@ -1,6 +1,7 @@
 "use client"
 
 import React from "react"
+import Image from "next/image"
 import { useRouter } from "next/navigation"
 import { createClient } from "@/lib/supabase/client"
 import { cn } from "@/lib/utils"
@@ -117,6 +118,7 @@ export function LoginForm({
             >
               <FieldGroup>
                 <div className="flex flex-col items-center gap-2 text-center">
+                  <Image src="/logoT.png" alt="Nook" width={80} height={20} className="h-5 w-auto mb-2" />
                   <h1 className="text-2xl font-bold">Reset password</h1>
                   <p className="text-balance text-muted-foreground">
                     Enter your email and we&apos;ll send you a reset link.
@@ -187,6 +189,7 @@ export function LoginForm({
           >
             <FieldGroup>
               <div className="flex flex-col items-center gap-2 text-center">
+                <Image src="/logoT.png" alt="Nook" width={80} height={20} className="h-5 w-auto mb-2" />
                 <h1 className="text-2xl font-bold">Welcome back</h1>
                 <p className="text-balance text-muted-foreground">
                   Login to your Nook account

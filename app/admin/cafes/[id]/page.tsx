@@ -1,6 +1,15 @@
+import type { Metadata } from "next"
 import Link from "next/link"
 import { EnvelopeSimple } from "@phosphor-icons/react/dist/ssr"
 import { getCafeById } from "@/lib/queries/cafes"
+
+export async function generateMetadata(
+  { params }: { params: Promise<{ id: string }> }
+): Promise<Metadata> {
+  const { id } = await params
+  const cafe = await getCafeById(id)
+  return { title: cafe?.name ?? "Cafe" }
+}
 import { getAllTags } from "@/lib/queries/tags"
 import { getCategoriesForCafe } from "@/lib/queries/menu"
 import { getInviteForCafe } from "@/lib/queries/invites"

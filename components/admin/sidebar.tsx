@@ -1,6 +1,7 @@
 "use client"
 
 import * as React from "react"
+import Image from "next/image"
 import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
 import {
@@ -11,7 +12,6 @@ import {
   TagIcon,
   ChatCircleTextIcon,
   SignOutIcon,
-  CommandIcon,
 } from "@phosphor-icons/react"
 import { createClient } from "@/lib/supabase/client"
 
@@ -59,9 +59,13 @@ export function AdminSidebar({ ...props }: React.ComponentProps<typeof Sidebar>)
           <SidebarMenuItem>
             <SidebarMenuButton size="lg" asChild>
               <Link href="/admin/dashboard">
-                <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground">
-                  <CommandIcon className="size-4" />
-                </div>
+                <Image
+                  src="/app_icon.png"
+                  alt="Nook"
+                  width={32}
+                  height={32}
+                  className="size-8 rounded-lg"
+                />
                 <div className="grid flex-1 text-left text-sm leading-tight">
                   <span className="truncate font-semibold">Nook</span>
                   <span className="truncate text-xs text-muted-foreground">Superadmin</span>

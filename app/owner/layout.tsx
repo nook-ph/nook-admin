@@ -1,3 +1,4 @@
+import type { Metadata } from "next"
 import { OwnerSidebar } from "@/components/owner/sidebar"
 import { Separator } from "@/components/ui/separator"
 import {
@@ -5,6 +6,13 @@ import {
   SidebarProvider,
   SidebarTrigger,
 } from "@/components/ui/sidebar"
+
+export const metadata: Metadata = {
+  title: {
+    template: "%s | Nook",
+    default: "Nook",
+  },
+}
 
 export default function OwnerLayout({
   children,

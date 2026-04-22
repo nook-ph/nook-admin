@@ -1,6 +1,9 @@
+import type { Metadata } from "next"
 import { getOwnerCafe } from "@/lib/owner/get-owner-cafe"
 import { getCategoriesForCafe } from "@/lib/queries/menu"
 import { OwnerMenuClient } from "@/components/owner/menu-client"
+
+export const metadata: Metadata = { title: "Menu" }
 
 export default async function OwnerMenuPage() {
   const cafe = await getOwnerCafe()

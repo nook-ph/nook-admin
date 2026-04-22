@@ -1,4 +1,7 @@
+import type { Metadata } from "next"
 import { getAllTags } from "@/lib/queries/tags"
+
+export const metadata: Metadata = { title: "New Cafe" }
 import { getGlobalCategories } from "@/lib/queries/menu"
 import { CafeEditorForm } from "@/components/admin/cafe-editor-form"
 

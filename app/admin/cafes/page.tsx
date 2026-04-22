@@ -1,4 +1,7 @@
+import type { Metadata } from "next"
 import { getCafes } from "@/lib/queries/cafes"
+
+export const metadata: Metadata = { title: "Cafes" }
 import { CafeListClient } from "@/components/admin/cafe-list-client"
 
 export default async function CafesPage({

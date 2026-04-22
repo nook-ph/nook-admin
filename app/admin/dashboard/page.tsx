@@ -1,4 +1,7 @@
+import type { Metadata } from "next"
 import { QuickActions } from "@/components/admin/quick-actions"
+
+export const metadata: Metadata = { title: "Dashboard" }
 import { RecentActivity } from "@/components/admin/recent-activity"
 import { SectionCards } from "@/components/admin/section-cards"
 import { getDashboardStats } from "@/lib/queries/cafes"
