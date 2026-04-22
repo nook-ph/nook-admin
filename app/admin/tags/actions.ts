@@ -1,6 +1,6 @@
 "use server"
 
-import { revalidatePath } from "next/cache"
+import { revalidatePath, revalidateTag } from "next/cache"
 import {
   createTag,
   updateTag,
@@ -14,6 +14,7 @@ export async function createTagAction(payload: {
 }) {
   try {
     await createTag(payload)
+    revalidateTag("admin-tags")
     revalidatePath("/admin/tags")
     return { success: true }
   } catch (error) {
@@ -27,6 +28,7 @@ export async function createTagAction(payload: {
 export async function toggleTagActiveAction(id: string, is_active: boolean) {
   try {
     await updateTag(id, { is_active })
+    revalidateTag("admin-tags")
     revalidatePath("/admin/tags")
     return { success: true }
   } catch (error) {
@@ -43,6 +45,7 @@ export async function updateTagAction(
 ) {
   try {
     await updateTag(id, payload)
+    revalidateTag("admin-tags")
     revalidatePath("/admin/tags")
     return { success: true }
   } catch (error) {
@@ -56,6 +59,7 @@ export async function updateTagAction(
 export async function deleteTagAction(id: string) {
   try {
     await deleteTag(id)
+    revalidateTag("admin-tags")
     revalidatePath("/admin/tags")
     return { success: true }
   } catch (error) {

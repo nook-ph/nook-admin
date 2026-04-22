@@ -56,6 +56,7 @@ import { setCafeStatusAction, deleteCafeAction } from "@/app/admin/cafes/actions
 import { type Cafe } from "@/lib/queries/cafes"
 
 type CafeRow = Cafe & { cafe_owner_cafe: { owner_id: string }[] | null }
+type TagOption = { id: string; name: string; category: string }
 
 function StatusBadge({ status }: { status: Cafe["status"] }) {
   if (status === "active") {
@@ -182,39 +183,67 @@ function CafeActions({ cafe }: { cafe: CafeRow }) {
   )
 }
 
-export function CafeListClient({ cafes }: { cafes: CafeRow[] }) {
+export function CafeListClient({
+  cafes,
+  tagOptions,
+  page,
+  total,
+  totalPages,
+}: {
+  cafes: CafeRow[]
+  tagOptions: TagOption[]
+  page: number
+  total: number
+  totalPages: number
+}) {
   const router = useRouter()
   const params = useSearchParams()
 
-  function handleSearch(value: string) {
+  function pushWithParams(nextParams: URLSearchParams) {
+    const query = nextParams.toString()
+    router.push(query ? `/admin/cafes?${query}` : "/admin/cafes")
+  }
+
+  function updateFilterParam(key: string, value: string) {
     const p = new URLSearchParams(params.toString())
-    if (value) {
-      p.set("search", value)
+    if (value && value !== "all") {
+      p.set(key, value)
     } else {
-      p.delete("search")
+      p.delete(key)
     }
-    router.push(`/admin/cafes?${p.toString()}`)
+    p.set("page", "1")
+    pushWithParams(p)
+  }
+
+  function handleSearch(value: string) {
+    updateFilterParam("search", value)
   }
 
   function handleStatus(value: string) {
-    const p = new URLSearchParams(params.toString())
-    if (value && value !== "all") {
-      p.set("status", value)
-    } else {
-      p.delete("status")
-    }
-    router.push(`/admin/cafes?${p.toString()}`)
+    updateFilterParam("status", value)
   }
 
   function handleNeighborhood(value: string) {
-    const p = new URLSearchParams(params.toString())
-    if (value && value !== "all") {
-      p.set("neighborhood", value)
-    } else {
-      p.delete("neighborhood")
-    }
-    router.push(`/admin/cafes?${p.toString()}`)
+    updateFilterParam("neighborhood", value)
   }
+
+  function handleTag(value: string) {
+    updateFilterParam("tag", value)
+  }
+
+  function handlePage(nextPage: number) {
+    const p = new URLSearchParams(params.toString())
+    if (nextPage <= 1) {
+      p.delete("page")
+    } else {
+      p.set("page", String(nextPage))
+    }
+    pushWithParams(p)
+  }
+
+  const hasResults = cafes.length > 0
+  const startItem = hasResults ? (page - 1) * 10 + 1 : 0
+  const endItem = hasResults ? startItem + cafes.length - 1 : 0
 
   return (
     <div className="w-full max-w-6xl mx-auto flex flex-col gap-6 px-4 py-6 lg:px-6">
@@ -279,14 +308,20 @@ export function CafeListClient({ cafes }: { cafes: CafeRow[] }) {
           </SelectContent>
         </Select>
 
-        <Select>
+        <Select
+          defaultValue={params.get("tag") ?? "all"}
+          onValueChange={handleTag}
+        >
           <SelectTrigger className="w-[160px]">
-            <SelectValue placeholder="Owner" />
+            <SelectValue placeholder="Tag" />
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All</SelectItem>
-            <SelectItem value="claimed">Claimed</SelectItem>
-            <SelectItem value="unclaimed">Unclaimed</SelectItem>
+            {tagOptions.map((tag) => (
+              <SelectItem key={tag.id} value={tag.id}>
+                {tag.name}
+              </SelectItem>
+            ))}
           </SelectContent>
         </Select>
 
@@ -322,7 +357,15 @@ export function CafeListClient({ cafes }: { cafes: CafeRow[] }) {
               <TableRow key={cafe.id}>
                 <TableCell>
                   <div className="flex items-center gap-3">
-                    <div className="size-10 rounded-md bg-muted shrink-0" />
+                    {cafe.featured_image_url ? (
+                      <div
+                        className="size-10 rounded-md bg-muted shrink-0 bg-cover bg-center"
+                        style={{ backgroundImage: `url(${cafe.featured_image_url})` }}
+                        aria-hidden="true"
+                      />
+                    ) : (
+                      <div className="size-10 rounded-md bg-muted shrink-0" aria-hidden="true" />
+                    )}
                     <div className="flex flex-col">
                       <Link
                         href={`/admin/cafes/${cafe.id}`}
@@ -359,8 +402,42 @@ export function CafeListClient({ cafes }: { cafes: CafeRow[] }) {
               </TableRow>
             )
           })}
+          {!hasResults && (
+            <TableRow>
+              <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
+                No cafes found for the current filters.
+              </TableCell>
+            </TableRow>
+          )}
         </TableBody>
       </Table>
+
+      <div className="flex items-center justify-between gap-3">
+        <p className="text-sm text-muted-foreground">
+          Showing {startItem}-{endItem} of {total}
+        </p>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => handlePage(page - 1)}
+            disabled={page <= 1}
+          >
+            Previous
+          </Button>
+          <span className="text-sm text-muted-foreground">
+            Page {totalPages === 0 ? 0 : page} of {totalPages}
+          </span>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => handlePage(page + 1)}
+            disabled={totalPages === 0 || page >= totalPages}
+          >
+            Next
+          </Button>
+        </div>
+      </div>
     </div>
   )
 }

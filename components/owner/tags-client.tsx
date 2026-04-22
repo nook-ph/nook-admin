@@ -13,12 +13,12 @@ import {
   CardTitle,
 } from "@/components/ui/card"
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
+  AlertDialog,
+  AlertDialogContent,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogDescription,
+} from "@/components/ui/alert-dialog"
 import { updateTagsAction } from "@/app/owner/actions"
 
 type Tag = {
@@ -62,17 +62,18 @@ function TagToggleGroup({
 export function OwnerTagsClient({
   allTags,
   appliedTagIds,
-  featuredTagId,
+  featuredTagIds,
 }: {
   allTags: Tag[]
   appliedTagIds: string[]
-  featuredTagId: string | null
+  featuredTagIds: string[]
 }) {
   const [isDirty, setIsDirty] = React.useState(false)
   const [isSaving, setIsSaving] = React.useState(false)
+  const [saveError, setSaveError] = React.useState<string | null>(null)
   const [selectedTags, setSelectedTags] = React.useState<string[]>(appliedTagIds)
-  const [featuredTag, setFeaturedTag] = React.useState<string>(
-    featuredTagId ?? appliedTagIds[0] ?? ""
+  const [featuredTags, setFeaturedTags] = React.useState<string[]>(
+    featuredTagIds.slice(0, 3)
   )
 
   const bestForTags = allTags.filter((t) => t.category === "best_for")
@@ -80,23 +81,44 @@ export function OwnerTagsClient({
   const paymentTags = allTags.filter((t) => t.category === "payment")
 
   function toggleTag(tagId: string) {
-    setSelectedTags((prev) =>
-      prev.includes(tagId) ? prev.filter((t) => t !== tagId) : [...prev, tagId]
-    )
+    setSelectedTags((prev) => {
+      const next = prev.includes(tagId)
+        ? prev.filter((t) => t !== tagId)
+        : [...prev, tagId]
+
+      if (!next.includes(tagId)) {
+        setFeaturedTags((current) => current.filter((id) => id !== tagId))
+      }
+
+      return next
+    })
+    setIsDirty(true)
+  }
+
+  function toggleFeaturedTag(tagId: string) {
+    setFeaturedTags((prev) => {
+      if (prev.includes(tagId)) return prev.filter((id) => id !== tagId)
+      if (prev.length >= 3) return prev
+      return [...prev, tagId]
+    })
     setIsDirty(true)
   }
 
   async function handleSave() {
     setIsSaving(true)
+    setSaveError(null)
     try {
-      await updateTagsAction(selectedTags, featuredTag || null)
+      await updateTagsAction(selectedTags, featuredTags)
       setIsDirty(false)
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Failed to save tags"
+      setSaveError(message)
     } finally {
       setIsSaving(false)
     }
   }
 
-  const selectedTagObjects = allTags.filter((t) => selectedTags.includes(t.id))
+  const featuredCandidates = bestForTags.filter((t) => selectedTags.includes(t.id))
   const bestForCount = bestForTags.filter((t) => selectedTags.includes(t.id)).length
   const amenitiesCount = amenitiesTags.filter((t) => selectedTags.includes(t.id)).length
   const paymentCount = paymentTags.filter((t) => selectedTags.includes(t.id)).length
@@ -129,37 +151,50 @@ export function OwnerTagsClient({
         {/* Featured Tag Card */}
         <Card>
           <CardHeader>
-            <CardTitle>Featured tag</CardTitle>
+            <CardTitle>Featured tags</CardTitle>
             <CardDescription>
-              cafe_tags.is_featured — one tag shown on cafe cards in search
-              results and the home feed
+              Select up to 3 featured tags from Best For. These appear as the
+              primary labels on your cafe card.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
-            <Select
-              value={featuredTag}
-              onValueChange={(v) => {
-                setFeaturedTag(v)
-                setIsDirty(true)
-              }}
-            >
-              <SelectTrigger className="w-full">
-                <SelectValue placeholder="Select a featured tag" />
-              </SelectTrigger>
-              <SelectContent>
-                {selectedTagObjects.map((tag) => (
-                  <SelectItem key={tag.id} value={tag.id}>
-                    {tag.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            {featuredCandidates.length > 0 ? (
+              <div className="flex flex-row flex-wrap gap-2">
+                {featuredCandidates.map((tag) => {
+                  const selected = featuredTags.includes(tag.id)
+                  const atLimit = featuredTags.length >= 3 && !selected
+
+                  return (
+                    <Button
+                      key={tag.id}
+                      type="button"
+                      variant={selected ? "default" : "outline"}
+                      size="sm"
+                      className={selected ? "gap-1.5" : "gap-1.5 text-muted-foreground"}
+                      onClick={() => toggleFeaturedTag(tag.id)}
+                      disabled={atLimit}
+                    >
+                      {selected && <Star size={12} weight="fill" />}
+                      {tag.name}
+                    </Button>
+                  )
+                })}
+              </div>
+            ) : (
+              <p className="text-sm text-muted-foreground">
+                Select at least one Best For tag first to choose featured tags.
+              </p>
+            )}
+
+            <div className="text-xs text-muted-foreground">
+              {featuredTags.length}/3 featured selected
+            </div>
 
             <div className="flex items-center gap-2 rounded-md bg-muted px-3 py-2">
               <Star size={14} className="text-yellow-500 shrink-0" />
               <p className="text-xs text-muted-foreground">
-                This tag appears as the primary label on your cafe card. Choose
-                the one that best describes your cafe at a glance.
+                Featured tags must be from Best For and can include up to 3
+                tags.
               </p>
             </div>
           </CardContent>
@@ -262,8 +297,9 @@ export function OwnerTagsClient({
               className="flex-1 sm:flex-none"
               onClick={() => {
                 setSelectedTags(appliedTagIds)
-                setFeaturedTag(featuredTagId ?? appliedTagIds[0] ?? "")
+                setFeaturedTags(featuredTagIds.slice(0, 3))
                 setIsDirty(false)
+                setSaveError(null)
               }}
             >
               Discard
@@ -280,6 +316,22 @@ export function OwnerTagsClient({
           </div>
         </div>
       )}
+
+      <AlertDialog
+        open={saveError !== null}
+        onOpenChange={(open) => {
+          if (!open) setSaveError(null)
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Unable to save tags</AlertDialogTitle>
+            <AlertDialogDescription>
+              {saveError}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   )
 }
