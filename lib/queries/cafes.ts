@@ -115,7 +115,7 @@ export async function getCafesPage(filters?: CafeListFilters & {
     ? supabase
       .from("cafe_tags")
       .select("cafe_id")
-      .eq("tag_id", filters.tagId as string)
+      .eq("tag_id", filters?.tagId as string)
     : Promise.resolve({ data: null, error: null })
 
   let countQuery = supabase
@@ -224,24 +224,13 @@ export async function createCafe(payload: {
 }
 
 export async function updateCafe(id: string, payload: Partial<Cafe>) {
-  const tagCafeIds = shouldFilterByTag
-    ? Array.from(new Set((await tagCafeIdsPromise).data?.map((row) => row.cafe_id)))
-    : null
-
-  let dataQuery = supabase
+  const supabase = createAdminClient()
+  const { data, error } = await supabase
     .from("cafes")
-    .select(`
-      id,
-      name,
-      neighborhood,
-      city,
-      featured_image_url,
-      status,
-      rating,
-      cafe_owner_cafe ( owner_id )
-    `)
-    .order("created_at", { ascending: false })
-    .range(from, to)
+    .update(payload)
+    .eq("id", id)
+    .select()
+    .single()
 
   if (error) throw error
   return data

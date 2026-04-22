@@ -41,7 +41,7 @@ export async function createCafeAction(payload: {
   const cafe = await createCafe(cafePayload)
 
   if (tagIds.length > 0) await setCafeTags(cafe.id, tagIds, featuredTagIds)
-  revalidateTag("admin-tags")
+  revalidateTag("admin-tags", "max")
 
   if (menuItems.length > 0) {
     await assignDraftCategoriesToCafe(
@@ -107,7 +107,7 @@ export async function updateCafeAction(
 
   if (tagIds !== undefined) {
     await setCafeTags(id, tagIds, featuredTagIds ?? [])
-    revalidateTag("admin-tags")
+    revalidateTag("admin-tags", "max")
   }
   revalidatePath("/admin/cafes")
   revalidatePath(`/admin/cafes/${id}`)
@@ -120,7 +120,7 @@ export async function updateCafeTagsAction(
   featuredTagIds: string[]
 ) {
   await setCafeTags(cafeId, tagIds, featuredTagIds)
-  revalidateTag("admin-tags")
+  revalidateTag("admin-tags", "max")
   revalidatePath(`/admin/cafes/${cafeId}/edit`)
 }
 
