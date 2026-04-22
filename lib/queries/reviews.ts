@@ -21,7 +21,7 @@ export async function getReviewsForCafe(
     .from("reviews")
     .select(`
       id, rating, content, created_at,
-      profiles ( full_name, username, avatar_url )
+      profiles!reviews_user_id_fkey ( full_name, username, avatar_url )
     `)
     .eq("cafe_id", cafeId)
     .order("created_at", { ascending: false })

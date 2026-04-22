@@ -40,7 +40,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
-import { createOwnerAccountAction } from "@/app/admin/owners/actions"
+import { createClient } from "@/lib/supabase/client"
 
 interface Cafe {
   id: string
@@ -106,20 +106,35 @@ export function CreateOwnerForm({ cafe }: CreateOwnerFormProps) {
   async function handleSend() {
     setLoading(true)
     try {
-      await createOwnerAccountAction({
-        email,
-        full_name: ownerName,
-        role: role as "owner" | "manager",
-        cafe_id: cafe.id,
+      const supabase = createClient()
+      const { error } = await supabase.functions.invoke("invite-owner", {
+        body: {
+          cafe_id: cafe.id,
+          email,
+          full_name: ownerName,
+          role,
+        },
       })
+
+      if (error) {
+        let message = "Please try again"
+        if (error instanceof Error) {
+          message = error.message
+        } else if (typeof error === "object" && error !== null && "message" in error) {
+          message = String((error as { message: unknown }).message)
+        }
+        throw new Error(message)
+      }
+
       setConfirmOpen(false)
-      toast.success("Credentials sent", {
-        description: `Login details sent to ${email}`,
+      toast.success("Invite sent", {
+        description: `Onboarding email sent to ${email}`,
       })
       router.push(`/admin/cafes/${cafe.id}`)
+      router.refresh()
     } catch (err) {
       setConfirmOpen(false)
-      toast.error("Failed to create owner account", {
+      toast.error("Failed to send invite", {
         description: err instanceof Error ? err.message : "Please try again",
       })
     } finally {
@@ -278,8 +293,8 @@ export function CreateOwnerForm({ cafe }: CreateOwnerFormProps) {
                 discovery app for Cebu.
               </p>
               <p>&nbsp;</p>
-              <p>Click the link below to set your password and access your dashboard:</p>
-              <p>[Set password link — valid for 24 hours]</p>
+              <p>Click the link below to set your password and enroll in two-factor authentication:</p>
+              <p>[Onboarding link → /onboarding/set-password — valid for 24 hours]</p>
               {note && (
                 <>
                   <p>&nbsp;</p>
