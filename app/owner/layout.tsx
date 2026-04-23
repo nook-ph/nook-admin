@@ -30,7 +30,7 @@ export default function OwnerLayout({
             className="mr-2 data-vertical:h-4 data-vertical:self-auto"
           />
         </header>
-        <main className="flex flex-1 flex-col gap-4 p-4">
+        <main className="flex flex-1 flex-col gap-4">
           {children}
         </main>
       </SidebarInset>

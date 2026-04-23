@@ -33,6 +33,8 @@ type NavItem = {
   icon: React.ElementType
 }
 
+const SHOW_PREVIEW = false
+
 const navItems: NavItem[] = [
   { title: "Dashboard", url: "/owner/dashboard", icon: SquaresFourIcon },
   { title: "Edit Listing", url: "/owner/profile", icon: PencilSimpleIcon },
@@ -40,7 +42,9 @@ const navItems: NavItem[] = [
   { title: "Tags", url: "/owner/tags", icon: TagIcon },
   { title: "Menu", url: "/owner/menu", icon: ForkKnifeIcon },
   { title: "Reviews", url: "/owner/reviews", icon: StarIcon },
-  { title: "Preview", url: "/owner/preview", icon: EyeIcon },
+  ...(SHOW_PREVIEW
+    ? [{ title: "Preview", url: "/owner/preview", icon: EyeIcon }]
+    : []),
 ]
 
 export function OwnerSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {

@@ -149,21 +149,11 @@ export function OwnerProfileClient({ cafe }: { cafe: Cafe }) {
       <div className="w-full max-w-6xl mx-auto px-4 py-6 sm:px-6 sm:py-8 space-y-6">
 
         {/* Page Header */}
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-2">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-8">
           <div>
             <h1 className="text-2xl font-semibold">Edit Listing</h1>
             <p className="text-sm text-muted-foreground">Update your cafe details</p>
           </div>
-          <Button
-            variant="default"
-            size="sm"
-            className="w-full sm:w-auto"
-            onClick={handleSave}
-            disabled={!isDirty || isSaving}
-          >
-            <FloppyDisk className="size-4" />
-            {isSaving ? "Saving..." : "Save Changes"}
-          </Button>
         </div>
 
         {/* Card 1 — Cafe Name */}
@@ -171,7 +161,7 @@ export function OwnerProfileClient({ cafe }: { cafe: Cafe }) {
           <CardHeader>
             <CardTitle>Cafe name</CardTitle>
             <CardDescription>
-              Changes are flagged for Nook team review before going live
+              For MVP, name validation is on hold and updates save immediately.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
@@ -186,13 +176,6 @@ export function OwnerProfileClient({ cafe }: { cafe: Cafe }) {
                 }}
               />
             </div>
-            <div className="flex items-start gap-2 rounded-md bg-amber-50 border border-amber-200 px-3 py-2 dark:bg-amber-950 dark:border-amber-800">
-              <Info className="size-3.5 text-amber-600 dark:text-amber-400 mt-0.5 shrink-0" />
-              <p className="text-xs text-amber-800 dark:text-amber-200">
-                Name changes are reviewed by the Nook team before going live to
-                prevent errors.
-              </p>
-            </div>
           </CardContent>
         </Card>
 
@@ -201,7 +184,8 @@ export function OwnerProfileClient({ cafe }: { cafe: Cafe }) {
           <CardHeader>
             <CardTitle>Description</CardTitle>
             <CardDescription>
-              cafes.description — max 300 characters
+              Tell customers what makes your cafe special, what to expect, and
+              what you are known for.
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -210,7 +194,6 @@ export function OwnerProfileClient({ cafe }: { cafe: Cafe }) {
                 value={description}
                 rows={4}
                 className="resize-none"
-                maxLength={300}
                 onChange={(e) => {
                   setDescription(e.target.value)
                   setIsDirty(true)
@@ -218,7 +201,7 @@ export function OwnerProfileClient({ cafe }: { cafe: Cafe }) {
               />
               <div className="flex flex-row justify-end">
                 <span className="text-xs text-muted-foreground">
-                  {description.length} / 300
+                  {description.length} characters
                 </span>
               </div>
             </div>
@@ -230,7 +213,7 @@ export function OwnerProfileClient({ cafe }: { cafe: Cafe }) {
           <CardHeader>
             <CardTitle>Operating hours</CardTitle>
             <CardDescription>
-              cafes.operating_hours (jsonb) — changes go live immediately
+              Keep your hours accurate so customers know when you are open.
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -283,7 +266,7 @@ export function OwnerProfileClient({ cafe }: { cafe: Cafe }) {
           <CardHeader>
             <CardTitle>Social links</CardTitle>
             <CardDescription>
-              cafes.social_links (jsonb) — changes go live immediately
+              Add your active social pages so customers can follow updates.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -358,8 +341,8 @@ export function OwnerProfileClient({ cafe }: { cafe: Cafe }) {
           <CardHeader>
             <CardTitle>Address</CardTitle>
             <CardDescription>
-              cafes.address — corrections are sent to the Nook team for
-              verification
+              Need to fix your address or map pin? Send a correction request
+              and our team will verify it.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">

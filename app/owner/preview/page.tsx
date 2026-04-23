@@ -1,5 +1,6 @@
 import type { Metadata } from "next"
 import Link from "next/link"
+import { notFound } from "next/navigation"
 
 export const metadata: Metadata = { title: "Preview" }
 import {
@@ -23,7 +24,13 @@ import { Separator } from "@/components/ui/separator"
 import { getOwnerCafe } from "@/lib/owner/get-owner-cafe"
 import { getReviewsForCafe } from "@/lib/queries/reviews"
 
+const SHOW_OWNER_PREVIEW = false
+
 export default async function OwnerPreviewPage() {
+  if (!SHOW_OWNER_PREVIEW) {
+    notFound()
+  }
+
   const cafe = await getOwnerCafe()
   const reviews = await getReviewsForCafe(cafe.id, { limit: 2 })
 
@@ -62,7 +69,7 @@ export default async function OwnerPreviewPage() {
           </Button>
           <Separator orientation="vertical" className="h-5 hidden sm:block" />
           <p className="text-sm text-muted-foreground hidden sm:block">
-            Preview — {cafe.name}
+            Preview - {cafe.name}
           </p>
         </div>
         <div className="flex flex-row items-center gap-2">
@@ -83,10 +90,10 @@ export default async function OwnerPreviewPage() {
       <div className="flex justify-center py-8 px-4 bg-muted min-h-screen">
 
         {/* Mobile device frame */}
-        <div className="w-[390px] bg-background rounded-[40px] border-[3px] border-foreground/20 shadow-2xl overflow-hidden">
-          <div className="overflow-y-auto max-h-[844px]">
+        <div className="w-97.5 bg-background rounded-[40px] border-[3px] border-foreground/20 shadow-2xl overflow-hidden">
+          <div className="overflow-y-auto max-h-211">
 
-            {/* 1 — Hero image */}
+            {/* 1 - Hero image */}
             <div className="relative h-64 bg-muted">
               {cafe.featured_image_url ? (
                 // eslint-disable-next-line @next/next/no-img-element
@@ -113,7 +120,7 @@ export default async function OwnerPreviewPage() {
               </div>
             </div>
 
-            {/* 2 — Cafe info */}
+            {/* 2 - Cafe info */}
             <div className="px-5 pt-4 pb-3 space-y-2">
               <div className="flex flex-row items-start justify-between gap-2">
                 <h2 className="text-xl font-bold leading-tight">
@@ -134,7 +141,7 @@ export default async function OwnerPreviewPage() {
                       <span className="font-semibold">{cafe.rating.toFixed(1)}</span>
                     </div>
                     <span className="text-muted-foreground">({cafe.review_count} reviews)</span>
-                    <span className="text-muted-foreground">·</span>
+                    <span className="text-muted-foreground">.</span>
                   </>
                 )}
               </div>
@@ -147,7 +154,7 @@ export default async function OwnerPreviewPage() {
               )}
             </div>
 
-            {/* 3 — Tag pills */}
+            {/* 3 - Tag pills */}
             {tags.length > 0 && (
               <div className="px-5 pb-3">
                 <div className="flex flex-row gap-2 overflow-x-auto pb-1">
@@ -166,10 +173,10 @@ export default async function OwnerPreviewPage() {
               </div>
             )}
 
-            {/* 4 — Divider */}
+            {/* 4 - Divider */}
             <Separator className="mx-5" style={{ width: "calc(100% - 2.5rem)" }} />
 
-            {/* 5 — Description */}
+            {/* 5 - Description */}
             {cafe.description && (
               <div className="px-5 py-3">
                 <p className="text-sm text-muted-foreground leading-relaxed">
@@ -178,7 +185,7 @@ export default async function OwnerPreviewPage() {
               </div>
             )}
 
-            {/* 6 — Menu Highlights */}
+            {/* 6 - Menu Highlights */}
             {menuHighlights.length > 0 && (
               <div className="px-5 pb-4">
                 <p className="text-sm font-semibold mb-3">Menu Highlights</p>
@@ -204,7 +211,7 @@ export default async function OwnerPreviewPage() {
                         {item.name}
                       </p>
                       <p className="text-xs text-muted-foreground">
-                        ₱{item.price.toFixed(2)}
+                        PHP {item.price.toFixed(2)}
                       </p>
                     </div>
                   ))}
@@ -212,10 +219,10 @@ export default async function OwnerPreviewPage() {
               </div>
             )}
 
-            {/* 7 — Divider */}
+            {/* 7 - Divider */}
             <Separator className="mx-5" style={{ width: "calc(100% - 2.5rem)" }} />
 
-            {/* 8 — Location & Contacts */}
+            {/* 8 - Location & Contacts */}
             <div className="px-5 pb-4 space-y-3">
               <p className="text-sm font-semibold">Location &amp; Contacts</p>
 
@@ -242,7 +249,7 @@ export default async function OwnerPreviewPage() {
               </div>
             </div>
 
-            {/* 9 — Reviews */}
+            {/* 9 - Reviews */}
             {reviews.length > 0 && (
               <div className="px-5 pb-6">
                 <div className="flex flex-row items-center justify-between mb-4">

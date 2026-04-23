@@ -136,16 +136,6 @@ export function OwnerTagsClient({
               you in search and filters.
             </p>
           </div>
-          <Button
-            variant="default"
-            size="sm"
-            className="w-full sm:w-auto"
-            disabled={!isDirty || isSaving}
-            onClick={handleSave}
-          >
-            <FloppyDisk className="size-4" />
-            {isSaving ? "Saving..." : "Save Changes"}
-          </Button>
         </div>
 
         {/* Featured Tag Card */}

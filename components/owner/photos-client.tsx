@@ -219,23 +219,7 @@ export function OwnerPhotosClient({
           </p>
         </div>
 
-        {/* Schema Note Banner */}
-        <div className="flex items-start gap-3 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 dark:border-blue-800 dark:bg-blue-950">
-          <Info
-            size={16}
-            className="text-blue-600 dark:text-blue-400 mt-0.5 shrink-0"
-          />
-          <div className="space-y-0.5">
-            <p className="text-sm font-medium text-blue-900 dark:text-blue-100">
-              Photo storage
-            </p>
-            <p className="text-xs text-blue-700 dark:text-blue-300">
-              Hero photo → cafes.featured_image_url · Additional photos →
-              cafes.photo_urls (jsonb array) · Stored in DigitalOcean Spaces
-              under nook/cafes/{"{cafeId}"}/
-            </p>
-          </div>
-        </div>
+  
 
         {/* Hero Photo Card */}
         <Card>
@@ -244,8 +228,8 @@ export function OwnerPhotosClient({
               <div className="flex flex-col gap-0.5">
                 <CardTitle>Hero photo</CardTitle>
                 <CardDescription>
-                  cafes.featured_image_url — shown on cafe cards, map pins, and
-                  the detail page header
+                  This is your main photo shown on cafe cards, map pins, and
+                  your cafe page header.
                 </CardDescription>
               </div>
               <Badge variant="secondary">Required</Badge>
@@ -326,7 +310,7 @@ export function OwnerPhotosClient({
               <div className="flex flex-col gap-0.5">
                 <CardTitle>Gallery photos</CardTitle>
                 <CardDescription>
-                  cafes.photo_urls (jsonb) — up to 5 photos including the hero
+                  Add up to 5 photos total, including your hero photo.
                 </CardDescription>
               </div>
               <Badge variant="outline">{usedSlots} / {TOTAL_SLOTS} used</Badge>
@@ -507,8 +491,7 @@ export function OwnerPhotosClient({
           <AlertDialogHeader>
             <AlertDialogTitle>Delete photo?</AlertDialogTitle>
             <AlertDialogDescription>
-              This photo will be permanently removed from your listing and
-              DigitalOcean Spaces.
+              This photo will be permanently removed from your listing.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

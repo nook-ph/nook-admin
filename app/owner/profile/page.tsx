@@ -9,3 +9,4 @@ export default async function OwnerProfilePage() {
 
   return <OwnerProfileClient cafe={cafe} />
 }
+

@@ -49,6 +49,8 @@ type Cafe = {
   city: string
 }
 
+const SHOW_PREVIEW = false
+
 function StarRating({ rating }: { rating: number }) {
   return (
     <div className="flex items-center gap-0.5">
@@ -281,23 +283,26 @@ export function OwnerDashboardClient({
                   </Link>
                 </Button>
 
-                <Button
-                  variant="outline"
-                  className="sm:col-span-2 justify-start gap-3 h-auto py-3 px-4"
-                  asChild
-                >
-                  <Link href="/owner/preview">
-                    <div className="size-8 rounded-md bg-muted flex items-center justify-center shrink-0">
-                      <Eye size={16} className="text-muted-foreground" />
-                    </div>
-                    <div className="flex flex-col items-start gap-0.5">
-                      <span className="text-sm font-medium">Preview Listing</span>
-                      <span className="text-xs text-muted-foreground">
-                        See how your cafe looks in the app
-                      </span>
-                    </div>
-                  </Link>
-                </Button>
+                {SHOW_PREVIEW && (
+                  <Button
+                    variant="outline"
+                    className="sm:col-span-2 justify-start gap-3 h-auto py-3 px-4"
+                    asChild
+                  >
+                    <Link href="/owner/preview">
+                      <div className="size-8 rounded-md bg-muted flex items-center justify-center shrink-0">
+                        <Eye size={16} className="text-muted-foreground" />
+                      </div>
+                      <div className="flex flex-col items-start gap-0.5">
+                        <span className="text-sm font-medium">Preview Listing</span>
+                        <span className="text-xs text-muted-foreground">
+                          See how your cafe looks in the app
+                        </span>
+                      </div>
+                    </Link>
+                  </Button>
+                )}
+
               </div>
             </CardContent>
           </Card>
@@ -442,7 +447,7 @@ export function OwnerDashboardClient({
           {/* Phase 3 Coming Soon Card */}
           <Card className="border-dashed">
             <CardHeader>
-              <CardTitle className="text-base">Coming in Phase 3</CardTitle>
+              <CardTitle className="text-base">Coming Soon</CardTitle>
               <CardDescription>More tools to grow your cafe</CardDescription>
             </CardHeader>
             <CardContent className="space-y-2">
