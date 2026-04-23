@@ -149,6 +149,40 @@ export async function deleteCafePhotoAction(
   revalidatePath("/owner/photos")
 }
 
+// ── REORDER CAFE PHOTOS ──────────────────────────────
+// Persist the visual order by setting the first URL as hero.
+
+export async function reorderCafePhotosAction(
+  orderedPhotoUrls: string[],
+  cafeId: string
+) {
+  const targetCafeId = requireCafeId(cafeId)
+
+  if (orderedPhotoUrls.length > CAFE_PHOTO_LIMIT) {
+    throw new Error(`Maximum ${CAFE_PHOTO_LIMIT} photos per cafe`)
+  }
+
+  const deduped = Array.from(new Set(orderedPhotoUrls.filter(Boolean)))
+  const hero = deduped[0] ?? null
+  const gallery = deduped.slice(1)
+
+  const supabase = createAdminClient()
+  const { error } = await supabase
+    .from("cafes")
+    .update({
+      featured_image_url: hero,
+      photo_urls: gallery,
+    })
+    .eq("id", targetCafeId)
+
+  if (error) throw error
+
+  revalidatePath(`/admin/cafes/${targetCafeId}/edit`)
+  revalidatePath("/owner/photos")
+
+  return { hero, gallery }
+}
+
 // ── MENU ITEM IMAGE ───────────────────────────────────
 // Key: nook/cafes/{cafeId}/menu/{menuItemId}.{ext}
 
