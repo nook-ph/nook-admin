@@ -18,6 +18,11 @@ export const metadata: Metadata = {
     default: "Nook",
   },
   description: "Nook cafe management platform",
+  icons: {
+    icon: "/nookGlasses.svg",
+    shortcut: "/nookGlasses.svg",
+    apple: "/nookGlasses.svg",
+  },
 };
 
 export default function RootLayout({
