@@ -13,6 +13,7 @@ import {
   ChatCircleTextIcon,
   SignOutIcon,
 } from "@phosphor-icons/react"
+import { toast } from "sonner"
 import { createClient } from "@/lib/supabase/client"
 
 import {
@@ -47,9 +48,15 @@ export function AdminSidebar({ ...props }: React.ComponentProps<typeof Sidebar>)
   const supabase = createClient()
 
   async function handleLogout() {
-    await supabase.auth.signOut()
-    router.push("/login")
-    router.refresh()
+    try {
+      await supabase.auth.signOut()
+      toast.success("Logged out")
+      router.push("/login")
+      router.refresh()
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Failed to log out"
+      toast.error(message)
+    }
   }
 
   return (

@@ -11,6 +11,7 @@ import {
   InstagramLogo,
   TiktokLogo,
 } from "@phosphor-icons/react"
+import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -127,6 +128,10 @@ export function OwnerProfileClient({ cafe }: { cafe: Cafe }) {
         social_links: { instagram, facebook, tiktok, website },
       })
       setIsDirty(false)
+      toast.success("Profile updated")
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Failed to save profile"
+      toast.error(message)
     } finally {
       setIsSaving(false)
     }
@@ -139,6 +144,10 @@ export function OwnerProfileClient({ cafe }: { cafe: Cafe }) {
       await submitCorrectionRequestAction(correctionText)
       setCorrectionText("")
       setCorrectionSent(true)
+      toast.success("Correction request sent")
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Failed to send correction request"
+      toast.error(message)
     } finally {
       setIsSendingCorrection(false)
     }

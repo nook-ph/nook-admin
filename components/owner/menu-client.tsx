@@ -12,6 +12,7 @@ import {
   UploadSimple,
   Warning,
 } from "@phosphor-icons/react"
+import { toast } from "sonner"
 
 import {
   AlertDialog,
@@ -253,7 +254,10 @@ export function OwnerMenuClient({
   const highlightCount = items.filter((i) => i.is_highlight).length
 
   async function toggleHighlight(id: string, value: boolean) {
-    if (value && highlightCount >= 5) return
+    if (value && highlightCount >= 5) {
+      toast.error("You can only highlight up to 5 items")
+      return
+    }
     const item = items.find((i) => i.id === id)
     if (!item) return
 
@@ -270,10 +274,12 @@ export function OwnerMenuClient({
         is_highlight: value,
         image_url: item.image_url,
       })
+      toast.success(value ? "Item highlighted" : "Item removed from highlights")
     } catch {
       setItems((prev) =>
         prev.map((i) => (i.id === id ? { ...i, is_highlight: !value } : i))
       )
+      toast.error("Failed to update highlight")
     }
   }
 
@@ -284,8 +290,10 @@ export function OwnerMenuClient({
     setItems((prev) => prev.filter((i) => i.id !== id))
     try {
       await deleteMenuItemAction(id)
+      toast.success("Menu item deleted")
     } catch {
       // Revert on error — server will revalidate on next load
+      toast.error("Failed to delete menu item")
     }
   }
 
@@ -312,6 +320,7 @@ export function OwnerMenuClient({
           imageUrl = url
         } catch {
           // Image upload failure is non-fatal — item is still saved
+          toast.error("Item created, but image upload failed")
         }
       }
 
@@ -331,6 +340,10 @@ export function OwnerMenuClient({
       setNewItem({ name: "", price: "", categoryId: "", is_highlight: false })
       setPendingImageFile(null)
       setAddItemOpen(false)
+      toast.success("Menu item added")
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Failed to add menu item"
+      toast.error(message)
     } finally {
       setIsSaving(false)
     }
@@ -347,9 +360,11 @@ export function OwnerMenuClient({
       setItems((prev) =>
         prev.map((i) => (i.id === id ? { ...i, image_url: url } : i))
       )
+      toast.success("Item image uploaded")
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Upload failed"
       setUploadError(msg)
+      toast.error(msg)
       setTimeout(() => setUploadError(""), 4000)
     } finally {
       setUploadingItemId(null)
@@ -363,9 +378,11 @@ export function OwnerMenuClient({
       setItems((prev) =>
         prev.map((i) => (i.id === id ? { ...i, image_url: null } : i))
       )
+      toast.success("Item image removed")
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Delete failed"
       setUploadError(msg)
+      toast.error(msg)
       setTimeout(() => setUploadError(""), 4000)
     } finally {
       setUploadingItemId(null)

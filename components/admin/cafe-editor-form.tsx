@@ -421,8 +421,11 @@ function AddCategoryDialog({
       setName("")
       setIsGlobal(false)
       onOpenChange(false)
+      toast.success("Category added")
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Failed to add category")
+      const message = err instanceof Error ? err.message : "Failed to add category"
+      setError(message)
+      toast.error(message)
     } finally {
       setSaving(false)
     }
@@ -519,8 +522,11 @@ function EditCategoryDialog({
         isGlobal: data.is_global,
       })
       onOpenChange(false)
+      toast.success("Category updated")
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Failed to update category")
+      const message = err instanceof Error ? err.message : "Failed to update category"
+      setError(message)
+      toast.error(message)
     } finally {
       setSaving(false)
     }
@@ -629,6 +635,11 @@ function AddItemDialog({
           isHighlight,
           imageUrl,
         })
+        toast.success("Menu item added")
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "Failed to add menu item"
+        toast.error(message)
+        return
       } finally {
         setSaving(false)
       }
@@ -893,6 +904,10 @@ function EditItemDialog({
         imageUrl,
       })
       onOpenChange(false)
+      toast.success("Menu item updated")
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Failed to update menu item"
+      toast.error(message)
     } finally {
       setSaving(false)
     }
@@ -1235,9 +1250,11 @@ function MenuItemsCard({
     try {
       const { url } = await uploadMenuItemImageAction(formData, id, cafeId)
       onImageUploaded(id, url)
+      toast.success("Item image uploaded")
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Upload failed"
       setUploadError(msg)
+      toast.error(msg)
       setTimeout(() => setUploadError(""), 4000)
     } finally {
       setUploadingItemId(null)
@@ -1250,9 +1267,11 @@ function MenuItemsCard({
     try {
       await deleteMenuItemImageAction(id, imageUrl, cafeId)
       onImageDeleted(id)
+      toast.success("Item image removed")
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Delete failed"
       setUploadError(msg)
+      toast.error(msg)
       setTimeout(() => setUploadError(""), 4000)
     } finally {
       setUploadingItemId(null)
@@ -1636,10 +1655,16 @@ export function CafeEditorForm({
   }
 
   async function handleDeleteItem(itemId: string) {
-    if (cafe?.id) {
-      await deleteMenuItemAction(itemId, cafe.id)
+    try {
+      if (cafe?.id) {
+        await deleteMenuItemAction(itemId, cafe.id)
+      }
+      setMenuItems((prev) => prev.filter((item) => item.id !== itemId))
+      toast.success("Menu item deleted")
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Failed to delete menu item"
+      toast.error(message)
     }
-    setMenuItems((prev) => prev.filter((item) => item.id !== itemId))
   }
 
   async function handleDeleteCategory(catId: string) {
@@ -1715,13 +1740,16 @@ export function CafeEditorForm({
       if (!heroUrl) {
         const { url } = await uploadCafeHeroAction(formData, cafe.id)
         setHeroUrl(url)
+        toast.success("Hero photo uploaded")
       } else {
         const { url } = await uploadCafePhotoAction(formData, cafe.id)
         setGalleryUrls((prev) => [...prev, url])
+        toast.success("Photo uploaded")
       }
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Upload failed"
       setPhotoUploadError(msg)
+      toast.error(msg)
       setTimeout(() => setPhotoUploadError(""), 4000)
     } finally {
       setIsUploadingPhoto(false)
@@ -1741,9 +1769,11 @@ export function CafeEditorForm({
       } else {
         setGalleryUrls((prev) => prev.filter((u) => u !== photoUrl))
       }
+      toast.success("Photo deleted")
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Delete failed"
       setPhotoUploadError(msg)
+      toast.error(msg)
       setTimeout(() => setPhotoUploadError(""), 4000)
     } finally {
       setIsUploadingPhoto(false)
@@ -1876,6 +1906,7 @@ export function CafeEditorForm({
             image_url: item.imageUrl,
           })),
         })
+        toast.success("Cafe created")
       } else {
         await updateCafeAction(cafe!.id, {
           ...payload,
@@ -1889,9 +1920,12 @@ export function CafeEditorForm({
             image_url: item.imageUrl,
           })),
         })
+        toast.success("Cafe updated")
       }
     } catch (err: unknown) {
-      setSaveError(parseSaveError(err))
+      const parsedError = parseSaveError(err)
+      toast.error(parsedError.message)
+      setSaveError(parsedError)
     } finally {
       setSaving(false)
     }

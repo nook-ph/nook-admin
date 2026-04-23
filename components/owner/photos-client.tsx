@@ -13,6 +13,7 @@ import {
   Trash,
   UploadSimple,
 } from "@phosphor-icons/react"
+import { toast } from "sonner"
 
 import {
   AlertDialog,
@@ -97,11 +98,14 @@ export function OwnerPhotosClient({
 
     try {
       await reorderCafePhotosAction(ordered, cafeId)
+      return true
     } catch (err: unknown) {
       applyOrderedPhotos(previous)
       const msg = err instanceof Error ? err.message : "Reorder failed"
       setUploadError(msg)
+      toast.error(msg)
       setTimeout(() => setUploadError(""), 4000)
+      return false
     } finally {
       setIsReordering(false)
     }
@@ -116,13 +120,15 @@ export function OwnerPhotosClient({
     const ordered = [...allPhotos]
     const [moved] = ordered.splice(index, 1)
     ordered.splice(target, 0, moved)
-    await persistPhotoOrder(ordered)
+    const saved = await persistPhotoOrder(ordered)
+    if (saved) toast.success("Photo order updated")
   }
 
   async function setAsHero(url: string) {
     if (isUploading || isReordering || url === allPhotos[0]) return
     const ordered = [url, ...allPhotos.filter((photoUrl) => photoUrl !== url)]
-    await persistPhotoOrder(ordered)
+    const saved = await persistPhotoOrder(ordered)
+    if (saved) toast.success("Hero photo updated")
   }
 
   function handleDragStart(index: number) {
@@ -148,7 +154,8 @@ export function OwnerPhotosClient({
     const [moved] = ordered.splice(draggingIndex, 1)
     ordered.splice(targetIndex, 0, moved)
     setDraggingIndex(null)
-    await persistPhotoOrder(ordered)
+    const saved = await persistPhotoOrder(ordered)
+    if (saved) toast.success("Photo order updated")
   }
 
   async function handleFileUpload(
@@ -168,13 +175,16 @@ export function OwnerPhotosClient({
       if (isHero) {
         const { url } = await uploadCafeHeroAction(formData, cafeId)
         setCurrentHeroUrl(url)
+        toast.success("Hero photo uploaded")
       } else {
         const { url } = await uploadCafePhotoAction(formData, cafeId)
         setCurrentPhotoUrls((prev) => [...prev, url])
+        toast.success("Photo uploaded")
       }
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Upload failed"
       setUploadError(msg)
+      toast.error(msg)
       setTimeout(() => setUploadError(""), 4000)
     } finally {
       setIsUploading(false)
@@ -197,9 +207,11 @@ export function OwnerPhotosClient({
       } else {
         setCurrentPhotoUrls((prev) => prev.filter((u) => u !== photo))
       }
+      toast.success("Photo deleted")
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Delete failed"
       setUploadError(msg)
+      toast.error(msg)
       setTimeout(() => setUploadError(""), 4000)
     } finally {
       setIsUploading(false)

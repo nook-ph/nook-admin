@@ -7,6 +7,7 @@ import {
   MagnifyingGlass,
   Star,
 } from "@phosphor-icons/react"
+import { toast } from "sonner"
 
 import {
   AlertDialog,
@@ -159,17 +160,6 @@ export function OwnerReviewsClient({
           </p>
         </div>
 
-        {/* Phase 3 Banner */}
-        <div className="flex items-center gap-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 dark:border-amber-800 dark:bg-amber-950">
-          <ChatCircle
-            size={16}
-            className="text-amber-600 dark:text-amber-400 shrink-0"
-          />
-          <p className="text-sm text-amber-800 dark:text-amber-200">
-            Review responses are coming in Phase 3 — you&apos;ll be able to
-            reply publicly to every review.
-          </p>
-        </div>
 
         {/* Summary Card */}
         <Card>
@@ -361,6 +351,7 @@ export function OwnerReviewsClient({
               onClick={() => {
                 setReportReview(null)
                 console.log("Review reported — the Nook team will take a look.")
+                toast.success("Report sent to the Nook team")
               }}
             >
               Send Report

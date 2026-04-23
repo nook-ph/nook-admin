@@ -9,6 +9,7 @@ import {
   ArrowCounterClockwise,
   Trash,
 } from "@phosphor-icons/react"
+import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -146,9 +147,15 @@ function DeleteAccountDialog({
           disabled={confirmValue !== "DELETE" || isPending}
           onClick={() => {
             startTransition(async () => {
-              await deleteUserAction(user.id)
-              setConfirmValue("")
-              onClose()
+              try {
+                await deleteUserAction(user.id)
+                toast.success("User deleted")
+                setConfirmValue("")
+                onClose()
+              } catch (error) {
+                const message = error instanceof Error ? error.message : "Failed to delete user"
+                toast.error(message)
+              }
             })
           }}
         >
@@ -183,8 +190,14 @@ function SuspendDialog({
           disabled={isPending}
           onClick={() => {
             startTransition(async () => {
-              await suspendUserAction(user.id, true)
-              onClose()
+              try {
+                await suspendUserAction(user.id, true)
+                toast.success("User suspended")
+                onClose()
+              } catch (error) {
+                const message = error instanceof Error ? error.message : "Failed to suspend user"
+                toast.error(message)
+              }
             })
           }}
         >
@@ -241,7 +254,13 @@ function UserActions({ user }: { user: AppUser }) {
               disabled={isPending}
               onSelect={() => {
                 startTransition(async () => {
-                  await suspendUserAction(user.id, false)
+                  try {
+                    await suspendUserAction(user.id, false)
+                    toast.success("User unsuspended")
+                  } catch (error) {
+                    const message = error instanceof Error ? error.message : "Failed to unsuspend user"
+                    toast.error(message)
+                  }
                 })
               }}
             >

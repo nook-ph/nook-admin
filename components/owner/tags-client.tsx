@@ -2,6 +2,7 @@
 
 import * as React from "react"
 import { Check, FloppyDisk, Star } from "@phosphor-icons/react"
+import { toast } from "sonner"
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -110,9 +111,11 @@ export function OwnerTagsClient({
     try {
       await updateTagsAction(selectedTags, featuredTags)
       setIsDirty(false)
+      toast.success("Tags saved")
     } catch (error) {
       const message = error instanceof Error ? error.message : "Failed to save tags"
       setSaveError(message)
+      toast.error(message)
     } finally {
       setIsSaving(false)
     }
@@ -259,18 +262,6 @@ export function OwnerTagsClient({
             </CardContent>
           </Card>
         )}
-
-        {/* Vibe Tags — Phase 2 Callout */}
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between rounded-lg border border-dashed px-4 py-3">
-          <div className="flex flex-col gap-0.5">
-            <p className="text-sm font-medium">Vibe tags</p>
-            <p className="text-xs text-muted-foreground">
-              Aesthetic / IG-worthy, Cozy &amp; Warm, Minimalist, and more —
-              coming in Phase 2.
-            </p>
-          </div>
-          <Badge variant="outline" className="self-start sm:self-auto">Phase 2</Badge>
-        </div>
 
         {isDirty && <div className="h-20" />}
       </div>

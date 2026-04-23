@@ -15,6 +15,7 @@ import {
   ArrowLineUp,
   Trash,
 } from "@phosphor-icons/react"
+import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -103,6 +104,30 @@ function CafeActions({ cafe }: { cafe: CafeRow }) {
   const [isPending, startTransition] = React.useTransition()
   const claimed = (cafe.cafe_owner_cafe?.length ?? 0) > 0
 
+  function handleStatusChange(status: "active" | "inactive") {
+    startTransition(async () => {
+      try {
+        await setCafeStatusAction(cafe.id, status)
+        toast.success(status === "active" ? "Cafe activated" : "Cafe deactivated")
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "Failed to update cafe status"
+        toast.error(message)
+      }
+    })
+  }
+
+  function handleDelete() {
+    startTransition(async () => {
+      try {
+        await deleteCafeAction(cafe.id)
+        toast.success("Cafe deleted")
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "Failed to delete cafe"
+        toast.error(message)
+      }
+    })
+  }
+
   return (
     <AlertDialog>
       <DropdownMenu>
@@ -131,9 +156,7 @@ function CafeActions({ cafe }: { cafe: CafeRow }) {
           <DropdownMenuSeparator />
           {cafe.status === "active" && (
             <DropdownMenuItem
-              onClick={() =>
-                startTransition(() => setCafeStatusAction(cafe.id, "inactive"))
-              }
+              onClick={() => handleStatusChange("inactive")}
             >
               <ArrowLineDown />
               Deactivate
@@ -141,9 +164,7 @@ function CafeActions({ cafe }: { cafe: CafeRow }) {
           )}
           {cafe.status === "inactive" && (
             <DropdownMenuItem
-              onClick={() =>
-                startTransition(() => setCafeStatusAction(cafe.id, "active"))
-              }
+              onClick={() => handleStatusChange("active")}
             >
               <ArrowLineUp />
               Activate
@@ -173,7 +194,7 @@ function CafeActions({ cafe }: { cafe: CafeRow }) {
           <AlertDialogCancel>Cancel</AlertDialogCancel>
           <AlertDialogAction
             variant="destructive"
-            onClick={() => startTransition(() => deleteCafeAction(cafe.id))}
+            onClick={handleDelete}
           >
             Delete
           </AlertDialogAction>
