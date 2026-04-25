@@ -311,6 +311,38 @@ export async function getOwnerDashboardCafeById(
   return data as OwnerDashboardCafe
 }
 
+export async function getOwnerAnalyticsSummaries(cafeId: string, daysBack: number) {
+  const supabase = createAdminClient()
+  
+  const dateBoundary = new Date()
+  dateBoundary.setDate(dateBoundary.getDate() - daysBack)
+  const targetDate = dateBoundary.toISOString().split('T')[0]
+
+  const { data, error } = await supabase
+    .from("cafe_analytics_summaries")
+    .select("summary_date, views_count, hours_checked_count, directions_tapped_count, favorites_count")
+    .eq("cafe_id", cafeId)
+    .gte("summary_date", targetDate)
+    .order("summary_date", { ascending: false })
+
+  if (error) throw error
+
+  const totals = data.reduce(
+    (acc, row) => ({
+      views: acc.views + (row.views_count || 0),
+      hours: acc.hours + (row.hours_checked_count || 0),
+      directions: acc.directions + (row.directions_tapped_count || 0),
+      favorites: acc.favorites + (row.favorites_count || 0),
+    }),
+    { views: 0, hours: 0, directions: 0, favorites: 0 }
+  )
+
+  return {
+    totals,
+    dailyData: data 
+  }
+}
+
 export async function getOwnerPhotosCafeById(
   cafeId: string
 ): Promise<OwnerPhotosCafe> {

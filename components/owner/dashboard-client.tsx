@@ -12,6 +12,7 @@ import {
   Image,
   Images,
   MapPin,
+  NavigationArrow,
   PencilSimple,
   Star,
   Tag,
@@ -47,6 +48,13 @@ type Cafe = {
   featured_image_url: string | null
   neighborhood: string | null
   city: string
+}
+
+type AnalyticsTotals = {
+  views: number
+  hours: number
+  directions: number
+  favorites: number
 }
 
 const SHOW_PREVIEW = false
@@ -93,16 +101,18 @@ function getInitials(name: string | null, username: string | null): string {
 export function OwnerDashboardClient({
   cafe,
   recentReviews,
+  analytics,
 }: {
   cafe: Cafe
   recentReviews: Review[]
+  analytics: AnalyticsTotals
 }) {
   const isActive = cafe.status === "active"
   const location = [cafe.neighborhood, cafe.city].filter(Boolean).join(", ")
 
   return (
-    <div className="w-full max-w-6xl mx-auto px-6 py-8 space-y-6">
-
+    <div className="w-full max-w-6xl mx-auto px-6 py-8 space-y-8">
+      
       {/* Section 1 — Listing Status Banner */}
       {isActive ? (
         <div className="flex items-center gap-3 rounded-lg border border-green-200 bg-green-50 px-4 py-3 dark:border-green-800 dark:bg-green-950">
@@ -136,63 +146,75 @@ export function OwnerDashboardClient({
         </div>
       )}
 
-      {/* Section 2 — Stats Row */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-        <Card>
-          <CardHeader>
-            <CardDescription>Total Reviews</CardDescription>
-            <CardTitle className="text-2xl font-semibold tabular-nums">
-              {cafe.review_count}
-            </CardTitle>
-            <CardAction>
-              <Badge variant="outline">
-                <ChatCircle />
-              </Badge>
-            </CardAction>
-          </CardHeader>
-        </Card>
+      {/* Section 2 — App Traffic (Last 30 Days) */}
+      <div className="space-y-4">
+        <div className="flex items-center justify-between">
+          <h2 className="text-lg font-semibold tracking-tight">App Traffic (Last 30 Days)</h2>
+          <Badge variant="secondary" className="font-normal">
+            Updated daily @ 10PM
+          </Badge>
+        </div>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+          <Card>
+            <CardHeader>
+              <CardDescription>Profile Views</CardDescription>
+              <CardTitle className="text-2xl font-semibold tabular-nums">
+                {analytics.views.toLocaleString()}
+              </CardTitle>
+              <CardAction>
+                <Badge variant="outline" className="px-1.5">
+                  <Eye size={14} />
+                </Badge>
+              </CardAction>
+            </CardHeader>
+          </Card>
 
-        <Card>
-          <CardHeader>
-            <CardDescription>Average Rating</CardDescription>
-            <CardTitle className="text-2xl font-semibold tabular-nums">
-              {cafe.rating != null ? `${cafe.rating.toFixed(1)} ★` : "—"}
-            </CardTitle>
-            <CardAction>
-              <Badge variant="outline">
-                <Star />
-              </Badge>
-            </CardAction>
-          </CardHeader>
-        </Card>
+          <Card>
+            <CardHeader>
+              <CardDescription>Route Requests</CardDescription>
+              <CardTitle className="text-2xl font-semibold tabular-nums">
+                {analytics.directions.toLocaleString()}
+              </CardTitle>
+              <CardAction>
+                <Badge variant="outline" className="px-1.5">
+                  <NavigationArrow size={14} />
+                </Badge>
+              </CardAction>
+            </CardHeader>
+          </Card>
 
-        <Card>
-          <CardHeader>
-            <CardDescription>Times Saved</CardDescription>
-            <CardTitle className="text-2xl font-semibold tabular-nums">
-              —
-            </CardTitle>
-            <CardAction>
-              <Badge variant="outline">
-                <Heart />
-              </Badge>
-            </CardAction>
-          </CardHeader>
-        </Card>
+          <Card>
+            <CardHeader>
+              <CardDescription>Times Saved</CardDescription>
+              <CardTitle className="text-2xl font-semibold tabular-nums">
+                {analytics.favorites.toLocaleString()}
+              </CardTitle>
+              <CardAction>
+                <Badge variant="outline" className="px-1.5">
+                  <Heart 
+                    size={14} 
+                    weight={analytics.favorites > 0 ? "fill" : "regular"} 
+                    className={analytics.favorites > 0 ? "text-red-500" : ""}
+                  />
+                </Badge>
+              </CardAction>
+            </CardHeader>
+          </Card>
 
-        <Card>
-          <CardHeader>
-            <CardDescription>Profile Views</CardDescription>
-            <CardTitle className="text-2xl font-semibold tabular-nums">
-              —
-            </CardTitle>
-            <CardAction>
-              <Badge variant="outline">
-                <Eye />
-              </Badge>
-            </CardAction>
-          </CardHeader>
-        </Card>
+          <Card>
+            <CardHeader>
+              <CardDescription>Hours Checked</CardDescription>
+              <CardTitle className="text-2xl font-semibold tabular-nums">
+                {analytics.hours.toLocaleString()}
+              </CardTitle>
+              <CardAction>
+                <Badge variant="outline" className="px-1.5">
+                  <Clock size={14} />
+                </Badge>
+              </CardAction>
+            </CardHeader>
+          </Card>
+        </div>
       </div>
 
       {/* Section 3 — Two Column Layout */}
@@ -223,7 +245,7 @@ export function OwnerDashboardClient({
                     <div className="flex flex-col items-start gap-0.5">
                       <span className="text-sm font-medium">Edit Listing</span>
                       <span className="text-xs text-muted-foreground">
-                        Update description and hours
+                        Update description and details
                       </span>
                     </div>
                   </Link>
@@ -241,7 +263,7 @@ export function OwnerDashboardClient({
                     <div className="flex flex-col items-start gap-0.5">
                       <span className="text-sm font-medium">Manage Photos</span>
                       <span className="text-xs text-muted-foreground">
-                        Upload and reorder photos
+                        Upload and reorder gallery
                       </span>
                     </div>
                   </Link>
@@ -259,7 +281,7 @@ export function OwnerDashboardClient({
                     <div className="flex flex-col items-start gap-0.5">
                       <span className="text-sm font-medium">Update Hours</span>
                       <span className="text-xs text-muted-foreground">
-                        Change your opening times
+                        Set your opening times
                       </span>
                     </div>
                   </Link>
@@ -282,27 +304,6 @@ export function OwnerDashboardClient({
                     </div>
                   </Link>
                 </Button>
-
-                {SHOW_PREVIEW && (
-                  <Button
-                    variant="outline"
-                    className="sm:col-span-2 justify-start gap-3 h-auto py-3 px-4"
-                    asChild
-                  >
-                    <Link href="/owner/preview">
-                      <div className="size-8 rounded-md bg-muted flex items-center justify-center shrink-0">
-                        <Eye size={16} className="text-muted-foreground" />
-                      </div>
-                      <div className="flex flex-col items-start gap-0.5">
-                        <span className="text-sm font-medium">Preview Listing</span>
-                        <span className="text-xs text-muted-foreground">
-                          See how your cafe looks in the app
-                        </span>
-                      </div>
-                    </Link>
-                  </Button>
-                )}
-
               </div>
             </CardContent>
           </Card>
@@ -324,14 +325,14 @@ export function OwnerDashboardClient({
             </CardHeader>
             <CardContent className="space-y-0">
               {recentReviews.length === 0 ? (
-                <p className="text-sm text-muted-foreground py-4 text-center">
+                <p className="text-sm text-muted-foreground py-8 text-center">
                   No reviews yet.
                 </p>
               ) : (
                 recentReviews.map((review) => (
                   <div
                     key={review.id}
-                    className="flex flex-row items-start gap-3 py-3 border-b last:border-0"
+                    className="flex flex-row items-start gap-3 py-4 border-b last:border-0"
                   >
                     <div className="size-8 rounded-full bg-muted flex items-center justify-center text-xs font-medium shrink-0">
                       {getInitials(
@@ -351,7 +352,7 @@ export function OwnerDashboardClient({
                         </span>
                       </div>
                       <StarRating rating={review.rating} />
-                      <p className="text-sm text-muted-foreground line-clamp-2">
+                      <p className="text-sm text-muted-foreground line-clamp-2 mt-0.5">
                         {review.content}
                       </p>
                     </div>
@@ -373,7 +374,6 @@ export function OwnerDashboardClient({
             <CardContent className="space-y-4">
               <div className="aspect-video w-full bg-muted rounded-lg flex flex-col items-center justify-center text-muted-foreground border overflow-hidden">
                 {cafe.featured_image_url ? (
-                  // eslint-disable-next-line @next/next/no-img-element
                   <img
                     src={cafe.featured_image_url}
                     alt={cafe.name}
