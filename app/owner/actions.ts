@@ -6,7 +6,11 @@ import { createAdminClient } from "@/lib/supabase/admin"
 import type { Cafe } from "@/lib/queries/cafes"
 import { updateCafe } from "@/lib/queries/cafes"
 import { isSpecialtyTag, setCafeTags } from "@/lib/queries/tags"
-import { upsertMenuItem, deleteMenuItem } from "@/lib/queries/menu"
+import {
+  upsertMenuItem,
+  deleteMenuItem,
+  upsertMenuItemVariants,
+} from "@/lib/queries/menu"
 
 type UpdateProfilePayload = Partial<Pick<
   Cafe,
@@ -136,6 +140,15 @@ export async function upsertMenuItemAction(
 export async function deleteMenuItemAction(id: string) {
   await deleteMenuItem(id)
   revalidatePath("/owner/menu")
+}
+
+export async function upsertMenuItemVariantsAction(
+  menuItemId: string,
+  variants: Parameters<typeof upsertMenuItemVariants>[1]
+) {
+  const data = await upsertMenuItemVariants(menuItemId, variants)
+  revalidatePath("/owner/menu")
+  return data
 }
 
 export async function updatePhotoAction(url: string, isHero: boolean) {

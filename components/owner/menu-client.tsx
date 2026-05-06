@@ -46,7 +46,11 @@ import {
 } from "@/components/ui/select"
 import { Switch } from "@/components/ui/switch"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { upsertMenuItemAction, deleteMenuItemAction } from "@/app/owner/actions"
+import {
+  upsertMenuItemAction,
+  deleteMenuItemAction,
+  upsertMenuItemVariantsAction,
+} from "@/app/owner/actions"
 import {
   uploadMenuItemImageAction,
   deleteMenuItemImageAction,
@@ -68,13 +72,33 @@ type MenuItem = {
   image_url: string | null
   category_id: string
   menu_categories: { id: string; name: string; is_global: boolean } | null
+  menu_item_variants?: MenuItemVariant[] | null
 }
 
-type NewItem = {
+type MenuItemVariant = {
+  id: string
+  label: string
+  price_override: number | null
+  price_modifier: number
+  is_default: boolean
+  sort_order: number
+}
+
+type VariantDraft = {
+  id?: string
+  label: string
+  priceOverride: string
+  isDefault: boolean
+}
+
+type MenuItemFormState = {
+  id?: string
   name: string
   price: string
   categoryId: string
   is_highlight: boolean
+  hasVariants: boolean
+  variants: VariantDraft[]
 }
 
 async function compressImage(file: File): Promise<File> {
@@ -84,6 +108,40 @@ async function compressImage(file: File): Promise<File> {
     useWebWorker: true,
     fileType: "image/webp",
   })
+}
+
+function formatPrice(value: number) {
+  return `₱${value.toFixed(2)}`
+}
+
+function getVariantEffectivePrice(variant: MenuItemVariant, basePrice: number) {
+  return variant.price_override ?? basePrice + variant.price_modifier
+}
+
+function getItemPriceDisplay(item: MenuItem) {
+  const variants = item.menu_item_variants ?? []
+  if (variants.length === 0) return formatPrice(item.price)
+  const prices = variants.map((variant) =>
+    getVariantEffectivePrice(variant, item.price)
+  )
+  const minPrice = Math.min(...prices)
+  const maxPrice = Math.max(...prices)
+
+  if (!Number.isFinite(minPrice) || !Number.isFinite(maxPrice)) {
+    return formatPrice(item.price)
+  }
+
+  if (minPrice === maxPrice) return formatPrice(minPrice)
+  return `${formatPrice(minPrice)} - ${formatPrice(maxPrice)}`
+}
+
+function createVariantDraft(overrides?: Partial<VariantDraft>): VariantDraft {
+  return {
+    label: "",
+    priceOverride: "",
+    isDefault: false,
+    ...overrides,
+  }
 }
 
 function ItemRow({
@@ -181,7 +239,7 @@ function ItemRow({
           <Badge variant="secondary" className="text-xs">{categoryName}</Badge>
           <span className="text-xs text-muted-foreground">·</span>
           <span className="text-xs text-muted-foreground">
-            ₱{item.price.toFixed(2)}
+            {getItemPriceDisplay(item)}
           </span>
         </div>
         {showMissingImageWarning && item.is_highlight && !item.image_url && (
@@ -236,7 +294,8 @@ export function OwnerMenuClient({
   cafeId: string
 }) {
   const [items, setItems] = React.useState<MenuItem[]>(initialItems)
-  const [addItemOpen, setAddItemOpen] = React.useState(false)
+  const [itemDialogOpen, setItemDialogOpen] = React.useState(false)
+  const [editingItemId, setEditingItemId] = React.useState<string | null>(null)
   const [addCategoryOpen, setAddCategoryOpen] = React.useState(false)
   const [deleteItem, setDeleteItem] = React.useState<string | null>(null)
   const [isSaving, setIsSaving] = React.useState(false)
@@ -244,14 +303,78 @@ export function OwnerMenuClient({
   const [uploadError, setUploadError] = React.useState("")
   const [pendingImageFile, setPendingImageFile] = React.useState<File | null>(null)
   const dialogInputRef = React.useRef<HTMLInputElement>(null)
-  const [newItem, setNewItem] = React.useState<NewItem>({
-    name: "", price: "", categoryId: "", is_highlight: false,
+  const [itemForm, setItemForm] = React.useState<MenuItemFormState>({
+    name: "",
+    price: "",
+    categoryId: "",
+    is_highlight: false,
+    hasVariants: false,
+    variants: [createVariantDraft({ isDefault: true })],
   })
 
   const globalCategories = categories.filter((c) => c.is_global)
   const customCategories = categories.filter((c) => !c.is_global)
 
   const highlightCount = items.filter((i) => i.is_highlight).length
+  const isEditing = editingItemId !== null
+  const editingItem = items.find((item) => item.id === editingItemId) ?? null
+
+  function resetItemForm() {
+    setItemForm({
+      name: "",
+      price: "",
+      categoryId: "",
+      is_highlight: false,
+      hasVariants: false,
+      variants: [createVariantDraft({ isDefault: true })],
+    })
+    setEditingItemId(null)
+    setPendingImageFile(null)
+  }
+
+  function openAddDialog() {
+    resetItemForm()
+    setItemDialogOpen(true)
+  }
+
+  function openEditDialog(item: MenuItem) {
+    const sortedVariants = [...(item.menu_item_variants ?? [])].sort(
+      (a, b) => a.sort_order - b.sort_order
+    )
+    const hasVariants = sortedVariants.length > 0
+
+    setItemForm({
+      id: item.id,
+      name: item.name,
+      price: item.price.toString(),
+      categoryId: item.category_id,
+      is_highlight: item.is_highlight,
+      hasVariants,
+      variants: hasVariants
+        ? sortedVariants.map((variant) =>
+          createVariantDraft({
+            id: variant.id,
+            label: variant.label,
+            priceOverride:
+              (variant.price_override ?? item.price + variant.price_modifier).toString(),
+            isDefault: variant.is_default,
+          })
+        )
+        : [createVariantDraft({ isDefault: true })],
+    })
+    setEditingItemId(item.id)
+    setPendingImageFile(null)
+    setItemDialogOpen(true)
+  }
+
+  function ensureDefaultVariant(variants: VariantDraft[]) {
+    if (variants.some((variant) => variant.isDefault)) return variants
+    if (variants.length === 0) return variants
+    return variants.map((variant, index) => ({
+      ...variant,
+      isDefault: index === 0,
+    }))
+  }
 
   async function toggleHighlight(id: string, value: boolean) {
     if (value && highlightCount >= 5) {
@@ -297,52 +420,139 @@ export function OwnerMenuClient({
     }
   }
 
-  async function handleAddItem() {
-    if (!newItem.name.trim() || !newItem.categoryId) return
+  async function handleSaveItem() {
+    if (!itemForm.name.trim() || !itemForm.categoryId) return
+
+    if (itemForm.hasVariants && itemForm.variants.length === 0) {
+      toast.error("Add at least one variant")
+      return
+    }
+
+    const normalizedVariants = itemForm.hasVariants
+      ? itemForm.variants.map((variant, index) => ({
+        id: variant.id,
+        label: variant.label.trim(),
+        price_override: variant.priceOverride
+          ? Number.parseFloat(variant.priceOverride)
+          : null,
+        price_modifier: 0,
+        is_default: variant.isDefault,
+        sort_order: index,
+      }))
+      : []
+
+    if (itemForm.hasVariants) {
+      const missingLabel = normalizedVariants.some((variant) => !variant.label)
+      if (missingLabel) {
+        toast.error("Variant label is required")
+        return
+      }
+
+      const invalidPrice = normalizedVariants.some((variant) =>
+        variant.price_override === null || Number.isNaN(variant.price_override)
+      )
+      if (invalidPrice) {
+        toast.error("Variant price is required")
+        return
+      }
+
+      if (!normalizedVariants.some((variant) => variant.is_default)) {
+        normalizedVariants[0].is_default = true
+      }
+    }
+
+    const highlightCapReached = highlightCount >= 5
+    const highlightAllowed =
+      !highlightCapReached || Boolean(editingItem?.is_highlight)
+    if (itemForm.is_highlight && !highlightAllowed) {
+      toast.error("You can only highlight up to 5 items")
+      return
+    }
+
     setIsSaving(true)
     try {
-      const isHighlight = newItem.is_highlight && highlightCount < 5
-      const { id: newId } = await upsertMenuItemAction({
-        name: newItem.name,
-        price: parseFloat(newItem.price) || 0,
-        category_id: newItem.categoryId,
-        is_highlight: isHighlight,
-        image_url: null,
+      let basePrice = Number.parseFloat(itemForm.price) || 0
+      if (itemForm.hasVariants) {
+        const defaultVariant = normalizedVariants.find((variant) => variant.is_default)
+        const fallbackVariant = defaultVariant ?? normalizedVariants[0]
+        if (!fallbackVariant) {
+          toast.error("Add at least one variant")
+          return
+        }
+        basePrice = fallbackVariant.price_override ?? 0
+      }
+
+      const { id: menuItemId } = await upsertMenuItemAction({
+        id: editingItemId ?? undefined,
+        name: itemForm.name,
+        price: basePrice,
+        category_id: itemForm.categoryId,
+        is_highlight: itemForm.is_highlight && highlightAllowed,
+        image_url: editingItem?.image_url ?? null,
       })
 
-      let imageUrl: string | null = null
-      if (isHighlight && pendingImageFile) {
+      let imageUrl = editingItem?.image_url ?? null
+      if (!isEditing && itemForm.is_highlight && pendingImageFile) {
         try {
           const compressed = await compressImage(pendingImageFile)
           const formData = new FormData()
           formData.append("file", compressed)
-          const { url } = await uploadMenuItemImageAction(formData, newId, cafeId)
+          const { url } = await uploadMenuItemImageAction(
+            formData,
+            menuItemId,
+            cafeId
+          )
           imageUrl = url
         } catch {
           // Image upload failure is non-fatal — item is still saved
-          toast.error("Item created, but image upload failed")
+          toast.error("Item saved, but image upload failed")
         }
       }
 
-      const category = categories.find((c) => c.id === newItem.categoryId)
-      const newEntry: MenuItem = {
-        id: newId,
-        name: newItem.name,
-        price: parseFloat(newItem.price) || 0,
-        is_highlight: isHighlight,
+      const variantsPayload = itemForm.hasVariants
+        ? normalizedVariants.map((variant, index) => ({
+          id: variant.id,
+          label: variant.label.trim(),
+          price_override: variant.price_override,
+          price_modifier: 0,
+          is_default: variant.is_default,
+          sort_order: index,
+        }))
+        : []
+
+      const savedVariants = await upsertMenuItemVariantsAction(
+        menuItemId,
+        variantsPayload
+      )
+
+      const category = categories.find((c) => c.id === itemForm.categoryId)
+      const updatedItem: MenuItem = {
+        id: menuItemId,
+        name: itemForm.name,
+        price: basePrice,
+        is_highlight: itemForm.is_highlight && highlightAllowed,
         image_url: imageUrl,
-        category_id: newItem.categoryId,
+        category_id: itemForm.categoryId,
         menu_categories: category
           ? { id: category.id, name: category.name, is_global: category.is_global }
           : null,
+        menu_item_variants: itemForm.hasVariants ? savedVariants : [],
       }
-      setItems((prev) => [...prev, newEntry])
-      setNewItem({ name: "", price: "", categoryId: "", is_highlight: false })
-      setPendingImageFile(null)
-      setAddItemOpen(false)
-      toast.success("Menu item added")
+
+      setItems((prev) => {
+        if (editingItemId) {
+          return prev.map((item) => (item.id === menuItemId ? updatedItem : item))
+        }
+        return [...prev, updatedItem]
+      })
+
+      resetItemForm()
+      setItemDialogOpen(false)
+      toast.success(isEditing ? "Menu item updated" : "Menu item added")
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Failed to add menu item"
+      const message = error instanceof Error
+        ? error.message
+        : "Failed to save menu item"
       toast.error(message)
     } finally {
       setIsSaving(false)
@@ -404,7 +614,7 @@ export function OwnerMenuClient({
               page
             </p>
           </div>
-          <Button variant="default" size="sm" className="w-full sm:w-auto" onClick={() => setAddItemOpen(true)}>
+          <Button variant="default" size="sm" className="w-full sm:w-auto" onClick={openAddDialog}>
             <Plus className="size-4" />
             Add Item
           </Button>
@@ -473,7 +683,7 @@ export function OwnerMenuClient({
                       item={item}
                       highlightCount={highlightCount}
                       onToggleHighlight={toggleHighlight}
-                      onEdit={() => {}}
+                      onEdit={openEditDialog}
                       onDelete={setDeleteItem}
                       onImageUpload={handleItemImageUpload}
                       onImageDelete={handleItemImageDelete}
@@ -513,7 +723,7 @@ export function OwnerMenuClient({
                       item={item}
                       highlightCount={highlightCount}
                       onToggleHighlight={toggleHighlight}
-                      onEdit={() => {}}
+                      onEdit={openEditDialog}
                       onDelete={setDeleteItem}
                       onImageUpload={handleItemImageUpload}
                       onImageDelete={handleItemImageDelete}
@@ -615,18 +825,15 @@ export function OwnerMenuClient({
 
       {/* Add Item Dialog */}
       <Dialog
-        open={addItemOpen}
+        open={itemDialogOpen}
         onOpenChange={(open) => {
-          setAddItemOpen(open)
-          if (!open) {
-            setNewItem({ name: "", price: "", categoryId: "", is_highlight: false })
-            setPendingImageFile(null)
-          }
+          setItemDialogOpen(open)
+          if (!open) resetItemForm()
         }}
       >
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Add menu item</DialogTitle>
+            <DialogTitle>{isEditing ? "Edit menu item" : "Add menu item"}</DialogTitle>
             <DialogDescription>
               menu_items — price stored as numeric
             </DialogDescription>
@@ -638,38 +845,40 @@ export function OwnerMenuClient({
               <Input
                 id="item-name"
                 placeholder="e.g. Iced Oat Latte"
-                value={newItem.name}
+                value={itemForm.name}
                 onChange={(e) =>
-                  setNewItem((prev) => ({ ...prev, name: e.target.value }))
+                  setItemForm((prev) => ({ ...prev, name: e.target.value }))
                 }
               />
             </div>
 
             <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="item-price">Price (₱)</Label>
-                <Input
-                  id="item-price"
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  placeholder="0.00"
-                  value={newItem.price}
-                  onChange={(e) =>
-                    setNewItem((prev) => ({ ...prev, price: e.target.value }))
-                  }
-                />
-                <p className="text-xs text-muted-foreground">
-                  Stored as numeric — e.g. 180.00
-                </p>
-              </div>
+              {!itemForm.hasVariants && (
+                <div className="space-y-2">
+                  <Label htmlFor="item-price">Price (₱)</Label>
+                  <Input
+                    id="item-price"
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    placeholder="0.00"
+                    value={itemForm.price}
+                    onChange={(e) =>
+                      setItemForm((prev) => ({ ...prev, price: e.target.value }))
+                    }
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Stored as numeric — e.g. 180.00
+                  </p>
+                </div>
+              )}
 
-              <div className="space-y-2">
+              <div className={itemForm.hasVariants ? "col-span-2 space-y-2" : "space-y-2"}>
                 <Label>Category</Label>
                 <Select
-                  value={newItem.categoryId}
+                  value={itemForm.categoryId}
                   onValueChange={(v) =>
-                    setNewItem((prev) => ({ ...prev, categoryId: v }))
+                    setItemForm((prev) => ({ ...prev, categoryId: v }))
                   }
                 >
                   <SelectTrigger className="w-full">
@@ -688,27 +897,166 @@ export function OwnerMenuClient({
 
             <div className="flex flex-row items-center justify-between">
               <div className="flex flex-col gap-0.5">
+                <span className="text-sm font-medium">Variants</span>
+                <span className="text-xs text-muted-foreground">
+                  Offer size or add-ons with different prices
+                </span>
+              </div>
+              <Switch
+                checked={itemForm.hasVariants}
+                onCheckedChange={(value) =>
+                  setItemForm((prev) => ({
+                    ...prev,
+                    hasVariants: value,
+                    variants: value
+                      ? ensureDefaultVariant(
+                        prev.variants.length > 0
+                          ? prev.variants
+                          : [createVariantDraft({ isDefault: true })]
+                      )
+                      : prev.variants,
+                  }))
+                }
+              />
+            </div>
+
+            {itemForm.hasVariants && (
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <Label>Variant list</Label>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="gap-1.5"
+                    onClick={() =>
+                      setItemForm((prev) => ({
+                        ...prev,
+                        variants: [
+                          ...prev.variants,
+                          createVariantDraft({
+                            isDefault: prev.variants.length === 0,
+                          }),
+                        ],
+                      }))
+                    }
+                  >
+                    <Plus size={14} />
+                    Add Variant
+                  </Button>
+                </div>
+
+                {itemForm.variants.map((variant, index) => (
+                  <div
+                    key={`${variant.id ?? "new"}-${index}`}
+                    className="grid grid-cols-1 gap-3 rounded-lg border p-3 sm:grid-cols-[1.5fr_1fr_auto_auto] sm:items-end"
+                  >
+                    <div className="space-y-1">
+                      <Label className="text-xs text-muted-foreground">Label</Label>
+                      <Input
+                        placeholder="e.g. Small"
+                        value={variant.label}
+                        onChange={(e) =>
+                          setItemForm((prev) => ({
+                            ...prev,
+                            variants: prev.variants.map((entry, idx) =>
+                              idx === index
+                                ? { ...entry, label: e.target.value }
+                                : entry
+                            ),
+                          }))
+                        }
+                      />
+                    </div>
+
+                    <div className="space-y-1">
+                      <Label className="text-xs text-muted-foreground">
+                        Price (₱)
+                      </Label>
+                      <Input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        placeholder="0.00"
+                        value={variant.priceOverride}
+                        onChange={(e) =>
+                          setItemForm((prev) => ({
+                            ...prev,
+                            variants: prev.variants.map((entry, idx) =>
+                              idx === index
+                                ? { ...entry, priceOverride: e.target.value }
+                                : entry
+                            ),
+                          }))
+                        }
+                      />
+                    </div>
+
+                    <label className="flex items-center gap-2 text-xs text-muted-foreground">
+                      <input
+                        type="radio"
+                        name="default-variant"
+                        checked={variant.isDefault}
+                        onChange={() =>
+                          setItemForm((prev) => ({
+                            ...prev,
+                            variants: prev.variants.map((entry, idx) => ({
+                              ...entry,
+                              isDefault: idx === index,
+                            })),
+                          }))
+                        }
+                      />
+                      Default
+                    </label>
+
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="size-8 hover:text-destructive"
+                      onClick={() =>
+                        setItemForm((prev) => {
+                          const next = prev.variants.filter((_, idx) => idx !== index)
+                          return {
+                            ...prev,
+                            variants: ensureDefaultVariant(next),
+                          }
+                        })
+                      }
+                      disabled={itemForm.variants.length <= 1}
+                    >
+                      <Trash size={14} className="text-muted-foreground" />
+                    </Button>
+                  </div>
+                ))}
+                <p className="text-xs text-muted-foreground">
+                  At least one variant is required.
+                </p>
+              </div>
+            )}
+
+            <div className="flex flex-row items-center justify-between">
+              <div className="flex flex-col gap-0.5">
                 <span className="text-sm font-medium">Feature as highlight</span>
                 <span className="text-xs text-muted-foreground">
                   Shows on your cafe detail page
                 </span>
               </div>
               <Switch
-                checked={newItem.is_highlight}
-                disabled={!newItem.is_highlight && highlightCount >= 5}
+                checked={itemForm.is_highlight}
+                disabled={!itemForm.is_highlight && highlightCount >= 5 && !editingItem?.is_highlight}
                 onCheckedChange={(v) =>
-                  setNewItem((prev) => ({ ...prev, is_highlight: v }))
+                  setItemForm((prev) => ({ ...prev, is_highlight: v }))
                 }
               />
             </div>
 
-            {newItem.is_highlight && highlightCount >= 5 && (
+            {itemForm.is_highlight && highlightCount >= 5 && !editingItem?.is_highlight && (
               <p className="text-xs text-destructive">
                 Maximum 5 highlights reached — toggle off another item first
               </p>
             )}
 
-            {newItem.is_highlight && highlightCount < 5 && (
+            {!isEditing && itemForm.is_highlight && highlightCount < 5 && (
               <div className="space-y-2">
                 <Label>Photo</Label>
                 <input
@@ -745,15 +1093,15 @@ export function OwnerMenuClient({
           </div>
 
           <DialogFooter>
-            <Button variant="outline" onClick={() => setAddItemOpen(false)}>
+            <Button variant="outline" onClick={() => setItemDialogOpen(false)}>
               Cancel
             </Button>
             <Button
               variant="default"
-              onClick={handleAddItem}
-              disabled={isSaving || !newItem.name.trim() || !newItem.categoryId}
+              onClick={handleSaveItem}
+              disabled={isSaving || !itemForm.name.trim() || !itemForm.categoryId}
             >
-              {isSaving ? "Adding..." : "Add Item"}
+              {isSaving ? "Saving..." : (isEditing ? "Save Changes" : "Add Item")}
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -17,6 +17,16 @@ export type MenuItem = {
   image_url: string | null
   category_id: string
   menu_categories: { id: string; name: string } | null
+  menu_item_variants?: MenuItemVariant[] | null
+}
+
+export type MenuItemVariant = {
+  id: string
+  label: string
+  price_override: number | null
+  price_modifier: number
+  is_default: boolean
+  sort_order: number
 }
 
 export async function getCategoriesForCafe(cafeId: string) {
@@ -69,6 +79,41 @@ export async function deleteMenuItem(id: string) {
   const { error } = await supabase.from("menu_items").delete().eq("id", id)
 
   if (error) throw error
+}
+
+export async function upsertMenuItemVariants(
+  menuItemId: string,
+  variants: Array<Omit<MenuItemVariant, "id"> & { id?: string }>
+) {
+  const supabase = createAdminClient()
+
+  const { error: deleteError } = await supabase
+    .from("menu_item_variants")
+    .delete()
+    .eq("menu_item_id", menuItemId)
+
+  if (deleteError) throw deleteError
+
+  if (variants.length === 0) return []
+
+  // Use insert only (omit id). Batch upsert from PostgREST can send id = null,
+  // which skips DEFAULT gen_random_uuid() and violates NOT NULL on id.
+  const payload = variants.map((variant, index) => ({
+    menu_item_id: menuItemId,
+    label: variant.label,
+    price_override: variant.price_override,
+    price_modifier: variant.price_modifier ?? 0,
+    is_default: variant.is_default ?? false,
+    sort_order: variant.sort_order ?? index,
+  }))
+
+  const { data, error } = await supabase
+    .from("menu_item_variants")
+    .insert(payload)
+    .select()
+
+  if (error) throw error
+  return data as MenuItemVariant[]
 }
 
 export async function createMenuCategory(category: {

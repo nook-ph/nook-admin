@@ -255,7 +255,11 @@ export async function getCafeForOwner(ownerUserId: string) {
       menu_items (
         id, name, description, price, is_highlight,
         image_url, category_id,
-        menu_categories ( id, name, is_global )
+        menu_categories ( id, name, is_global ),
+        menu_item_variants (
+          id, label, price_override, price_modifier,
+          is_default, sort_order
+        )
       )
     `)
     .eq("id", link.cafe_id)
