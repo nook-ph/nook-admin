@@ -5,8 +5,10 @@ import Link from "next/link"
 import dynamic from "next/dynamic"
 import {
   ArrowLeft,
+  CaretLeft,
+  CaretRight,
+  Crown,
   Plus,
-  X,
   Trash,
   DotsSixVertical,
   InstagramLogo,
@@ -87,6 +89,7 @@ import {
   uploadCafeHeroAction,
   uploadCafePhotoAction,
   deleteCafePhotoAction,
+  reorderCafePhotosAction,
   uploadMenuItemImageAction,
   deleteMenuItemImageAction,
 } from "@/app/actions/upload"
@@ -1716,13 +1719,95 @@ export function CafeEditorForm({
     (cafe?.photo_urls as string[] | null) ?? []
   )
   const [isUploadingPhoto, setIsUploadingPhoto] = React.useState(false)
+  const [isReordering, setIsReordering] = React.useState(false)
   const [photoUploadError, setPhotoUploadError] = React.useState("")
   const photoInputRef = React.useRef<HTMLInputElement>(null)
+  const [draggingIndex, setDraggingIndex] = React.useState<number | null>(null)
 
   const allPhotos = [
     ...(heroUrl ? [heroUrl] : []),
-    ...galleryUrls,
+    ...galleryUrls.filter((url) => url !== heroUrl),
   ]
+
+  function applyOrderedPhotos(ordered: string[]) {
+    setHeroUrl(ordered[0] ?? null)
+    setGalleryUrls(ordered.slice(1))
+  }
+
+  async function persistPhotoOrder(ordered: string[]) {
+    if (!cafe?.id) return false
+    const previous = allPhotos
+    applyOrderedPhotos(ordered)
+    setIsReordering(true)
+    setPhotoUploadError("")
+
+    try {
+      await reorderCafePhotosAction(ordered, cafe.id)
+      return true
+    } catch (err: unknown) {
+      applyOrderedPhotos(previous)
+      const msg = err instanceof Error ? err.message : "Reorder failed"
+      setPhotoUploadError(msg)
+      toast.error(msg)
+      setTimeout(() => setPhotoUploadError(""), 4000)
+      return false
+    } finally {
+      setIsReordering(false)
+    }
+  }
+
+  async function movePhoto(index: number, direction: -1 | 1) {
+    const target = index + direction
+    if (
+      target < 0 ||
+      target >= allPhotos.length ||
+      isUploadingPhoto ||
+      isReordering ||
+      disabled
+    ) {
+      return
+    }
+
+    const ordered = [...allPhotos]
+    const [moved] = ordered.splice(index, 1)
+    ordered.splice(target, 0, moved)
+    const saved = await persistPhotoOrder(ordered)
+    if (saved) toast.success("Photo order updated")
+  }
+
+  async function setAsHero(url: string) {
+    if (isUploadingPhoto || isReordering || disabled || url === allPhotos[0]) return
+    const ordered = [url, ...allPhotos.filter((photoUrl) => photoUrl !== url)]
+    const saved = await persistPhotoOrder(ordered)
+    if (saved) toast.success("Hero photo updated")
+  }
+
+  function handleDragStart(index: number) {
+    setDraggingIndex(index)
+  }
+
+  function handleDragEnd() {
+    setDraggingIndex(null)
+  }
+
+  async function handleDrop(targetIndex: number) {
+    if (draggingIndex === null || draggingIndex === targetIndex) {
+      setDraggingIndex(null)
+      return
+    }
+
+    if (isUploadingPhoto || isReordering || disabled) {
+      setDraggingIndex(null)
+      return
+    }
+
+    const ordered = [...allPhotos]
+    const [moved] = ordered.splice(draggingIndex, 1)
+    ordered.splice(targetIndex, 0, moved)
+    setDraggingIndex(null)
+    const saved = await persistPhotoOrder(ordered)
+    if (saved) toast.success("Photo order updated")
+  }
 
   async function handlePhotoFileSelect(
     e: React.ChangeEvent<HTMLInputElement>
@@ -1763,12 +1848,8 @@ export function CafeEditorForm({
     setIsUploadingPhoto(true)
     try {
       await deleteCafePhotoAction(photoUrl, isHero, cafe.id)
-      if (isHero) {
-        setHeroUrl(galleryUrls[0] ?? null)
-        setGalleryUrls((prev) => prev.slice(1))
-      } else {
-        setGalleryUrls((prev) => prev.filter((u) => u !== photoUrl))
-      }
+      const remaining = allPhotos.filter((url) => url !== photoUrl)
+      applyOrderedPhotos(remaining)
       toast.success("Photo deleted")
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Delete failed"
@@ -2236,10 +2317,15 @@ export function CafeEditorForm({
                   )}
 
                   {/* Actual photos */}
-                  {allPhotos.map((url) => (
+                  {allPhotos.map((url, index) => (
                     <div
                       key={url}
-                      className="relative aspect-square rounded-lg bg-muted overflow-hidden"
+                      className="relative group aspect-square rounded-lg bg-muted overflow-hidden"
+                      draggable={!disabled && !isUploadingPhoto && !isReordering}
+                      onDragStart={() => handleDragStart(index)}
+                      onDragEnd={handleDragEnd}
+                      onDragOver={(e) => e.preventDefault()}
+                      onDrop={() => void handleDrop(index)}
                     >
                       {/* eslint-disable-next-line @next/next/no-img-element */}
                       <img
@@ -2247,20 +2333,76 @@ export function CafeEditorForm({
                         alt="Cafe photo"
                         className="w-full h-full object-cover"
                       />
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="absolute top-1 right-1 size-6 bg-background/80 hover:bg-background"
-                        disabled={disabled || isUploadingPhoto}
-                        onClick={() => handlePhotoDelete(url)}
-                      >
-                        <X className="size-3" />
-                      </Button>
                       {url === heroUrl && (
                         <Badge className="absolute bottom-1 left-1 text-xs">
                           Hero
                         </Badge>
                       )}
+                      <Badge
+                        variant="outline"
+                        className="absolute top-1 right-1 text-[10px] bg-background/90"
+                      >
+                        <DotsSixVertical size={10} />
+                        <span className="hidden sm:inline">Drag</span>
+                      </Badge>
+                      <div className="absolute bottom-1 left-1 right-1 z-10 flex items-center justify-between gap-2">
+                        <Button
+                          type="button"
+                          variant="secondary"
+                          size="icon"
+                          className="size-7"
+                          onClick={() => void movePhoto(index, -1)}
+                          disabled={
+                            index === 0 ||
+                            isUploadingPhoto ||
+                            isReordering ||
+                            disabled
+                          }
+                          aria-label="Move photo left"
+                        >
+                          <CaretLeft size={14} />
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="secondary"
+                          size="icon"
+                          className="size-7"
+                          onClick={() => void movePhoto(index, 1)}
+                          disabled={
+                            index === allPhotos.length - 1 ||
+                            isUploadingPhoto ||
+                            isReordering ||
+                            disabled
+                          }
+                          aria-label="Move photo right"
+                        >
+                          <CaretRight size={14} />
+                        </Button>
+                      </div>
+                      <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity rounded-lg flex items-center justify-center gap-2">
+                        {url !== heroUrl && (
+                          <Button
+                            variant="secondary"
+                            size="sm"
+                            className="gap-1"
+                            disabled={isUploadingPhoto || isReordering || disabled}
+                            onClick={() => void setAsHero(url)}
+                          >
+                            <Crown size={12} />
+                            Set hero
+                          </Button>
+                        )}
+                        <Button
+                          variant="destructive"
+                          size="sm"
+                          className="gap-1"
+                          disabled={isUploadingPhoto || isReordering || disabled}
+                          onClick={() => handlePhotoDelete(url)}
+                        >
+                          <Trash size={12} />
+                          Delete
+                        </Button>
+                      </div>
                     </div>
                   ))}
                 </div>
