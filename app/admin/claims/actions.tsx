@@ -82,18 +82,27 @@ async function updateClaimStatus(params: {
 }
 
 export async function markUnderReviewAction(claimId: string) {
-  const supabase = await createClient();
-  const actorId = await requireSuperadminId(supabase);
+  try {
+    const supabase = await createClient();
+    const actorId = await requireSuperadminId(supabase);
 
-  await updateClaimStatus({ supabase, claimId, status: "under_review" });
-  await insertAuditLog({
-    supabase,
-    actorId,
-    action: "claim_marked_under_review",
-    targetId: claimId,
-  });
+    await updateClaimStatus({ supabase, claimId, status: "under_review" });
+    await insertAuditLog({
+      supabase,
+      actorId,
+      action: "claim_marked_under_review",
+      targetId: claimId,
+    });
 
-  revalidatePath("/admin/claims");
+    revalidatePath("/admin/claims");
+    return { success: true };
+  } catch (error) {
+    return {
+      success: false as const,
+      error:
+        error instanceof Error ? error.message : "An unexpected error occurred",
+    };
+  }
 }
 
 export async function approveClaimAction(claimId: string) {
@@ -140,10 +149,12 @@ export async function approveClaimAction(claimId: string) {
     }
 
     // 3. Set auth metadata
-    const { error: metaError } =
-      await supabaseAdmin.auth.admin.updateUserById(claim.claimant_id, {
+    const { error: metaError } = await supabaseAdmin.auth.admin.updateUserById(
+      claim.claimant_id,
+      {
         app_metadata: { role: "cafe_owner", cafe_id: claim.cafe_id },
-      });
+      },
+    );
 
     if (metaError) {
       return { success: false as const, error: "Failed to update user role" };
@@ -238,9 +249,7 @@ export async function approveClaimAction(claimId: string) {
     return {
       success: false as const,
       error:
-        error instanceof Error
-          ? error.message
-          : "An unexpected error occurred",
+        error instanceof Error ? error.message : "An unexpected error occurred",
     };
   }
 }
@@ -249,73 +258,85 @@ export async function rejectClaimAction(
   claimId: string,
   rejectionReason: string,
 ) {
-  const supabase = await createClient();
-  const actorId = await requireSuperadminId(supabase);
+  try {
+    const supabase = await createClient();
+    const actorId = await requireSuperadminId(supabase);
 
-  if (!rejectionReason.trim()) throw new Error("Rejection reason is required");
+    if (!rejectionReason.trim())
+      throw new Error("Rejection reason is required");
 
-  await updateClaimStatus({
-    supabase,
-    claimId,
-    status: "rejected",
-    reviewedBy: actorId,
-    rejectionReason: rejectionReason.trim(),
-  });
+    await updateClaimStatus({
+      supabase,
+      claimId,
+      status: "rejected",
+      reviewedBy: actorId,
+      rejectionReason: rejectionReason.trim(),
+    });
 
-  await insertAuditLog({
-    supabase,
-    actorId,
-    action: "claim_rejected",
-    targetId: claimId,
-    metadata: { rejection_reason: rejectionReason.trim() },
-  });
+    await insertAuditLog({
+      supabase,
+      actorId,
+      action: "claim_rejected",
+      targetId: claimId,
+      metadata: { rejection_reason: rejectionReason.trim() },
+    });
 
-  const { data: claim } = await supabase
-    .from("cafe_claims")
-    .select("cafe_id, claimant_id")
-    .eq("id", claimId)
-    .single();
+    const { data: claim } = await supabase
+      .from("cafe_claims")
+      .select("cafe_id, claimant_id")
+      .eq("id", claimId)
+      .single();
 
-  if (claim) {
-    const [{ data: ownerProfile }, { data: cafeData }] = await Promise.all([
-      supabase
-        .from("profiles")
-        .select("full_name, email")
-        .eq("id", claim.claimant_id)
-        .single(),
-      supabase.from("cafes").select("name").eq("id", claim.cafe_id).single(),
-    ]);
+    if (claim) {
+      const [{ data: ownerProfile }, { data: cafeData }] = await Promise.all([
+        supabase
+          .from("profiles")
+          .select("full_name, email")
+          .eq("id", claim.claimant_id)
+          .single(),
+        supabase.from("cafes").select("name").eq("id", claim.cafe_id).single(),
+      ]);
 
-    if (ownerProfile?.email && cafeData?.name) {
-      const { data: emailData, error: emailError } = await resend.emails.send({
-        from: "Nook <noreply@surgestudio.tech>",
-        to: [ownerProfile.email],
-        subject: `Your claim for ${cafeData.name} could not be approved`,
-        react: (
-          <CafeClaimRejectedEmail
-            ownerName={ownerProfile.full_name ?? "there"}
-            cafeName={cafeData.name}
-            rejectionReason={rejectionReason.trim()}
-            email={ownerProfile.email}
-          />
-        ),
-      });
-
-      if (emailError) {
-        console.error("[EMAIL] Failed to send rejection email:", {
-          name: emailError.name,
-          message: emailError.message,
-        });
-      } else {
-        console.log(
-          "[EMAIL] Rejection email sent:",
-          emailData?.id,
-          "→",
-          ownerProfile.email,
+      if (ownerProfile?.email && cafeData?.name) {
+        const { data: emailData, error: emailError } = await resend.emails.send(
+          {
+            from: "Nook <noreply@surgestudio.tech>",
+            to: [ownerProfile.email],
+            subject: `Your claim for ${cafeData.name} could not be approved`,
+            react: (
+              <CafeClaimRejectedEmail
+                ownerName={ownerProfile.full_name ?? "there"}
+                cafeName={cafeData.name}
+                rejectionReason={rejectionReason.trim()}
+                email={ownerProfile.email}
+              />
+            ),
+          },
         );
+
+        if (emailError) {
+          console.error("[EMAIL] Failed to send rejection email:", {
+            name: emailError.name,
+            message: emailError.message,
+          });
+        } else {
+          console.log(
+            "[EMAIL] Rejection email sent:",
+            emailData?.id,
+            "→",
+            ownerProfile.email,
+          );
+        }
       }
     }
-  }
 
-  revalidatePath("/admin/claims");
+    revalidatePath("/admin/claims");
+    return { success: true };
+  } catch (error) {
+    return {
+      success: false as const,
+      error:
+        error instanceof Error ? error.message : "An unexpected error occurred",
+    };
+  }
 }

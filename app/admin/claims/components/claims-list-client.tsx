@@ -180,13 +180,11 @@ function ClaimActions({ claim }: { claim: ClaimRow }) {
 
   function handleMarkUnderReview() {
     startTransition(async () => {
-      try {
-        await markUnderReviewAction(claim.id);
+      const result = await markUnderReviewAction(claim.id);
+      if (result.success) {
         toast.success("Claim marked as under review");
-      } catch (error) {
-        const message =
-          error instanceof Error ? error.message : "Failed to update claim";
-        toast.error(message);
+      } else {
+        toast.error(result.error ?? "Failed to update claim");
       }
     });
   }
@@ -196,6 +194,8 @@ function ClaimActions({ claim }: { claim: ClaimRow }) {
       const result = await approveClaimAction(claim.id);
       if (result.success) {
         toast.success("Claim approved");
+        setDialogOpen(false);
+        setDialogType(null);
       } else {
         toast.error(result.error ?? "Failed to approve claim");
       }
@@ -207,16 +207,14 @@ function ClaimActions({ claim }: { claim: ClaimRow }) {
     if (!reason) return;
 
     startTransition(async () => {
-      try {
-        await rejectClaimAction(claim.id, reason);
+      const result = await rejectClaimAction(claim.id, reason);
+      if (result.success) {
         toast.success("Claim rejected");
         setDialogOpen(false);
         setDialogType(null);
         setRejectionReason("");
-      } catch (error) {
-        const message =
-          error instanceof Error ? error.message : "Failed to reject claim";
-        toast.error(message);
+      } else {
+        toast.error(result.error ?? "Failed to reject claim");
       }
     });
   }
