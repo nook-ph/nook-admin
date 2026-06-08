@@ -16,7 +16,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
 import { StampMethodBadge } from "@/components/admin/crawls/stamp-method-badge"
-import type { MockStamp } from "@/components/admin/crawls/stamps-mock-data"
+import type { CrawlStamp } from "@/lib/types/crawls"
 
 export function RevokeStampDialog({
   stamp,
@@ -24,7 +24,7 @@ export function RevokeStampDialog({
   onOpenChange,
   onRevoke,
 }: {
-  stamp: MockStamp | null
+  stamp: CrawlStamp | null
   open: boolean
   onOpenChange: (open: boolean) => void
   onRevoke: (stampId: string, note: string) => void
@@ -57,12 +57,12 @@ export function RevokeStampDialog({
           <div className="flex flex-col gap-3 text-xs">
             <div className="rounded-lg border bg-muted/30 p-3 flex flex-col gap-2">
               <div className="flex items-center justify-between">
-                <span className="text-muted-foreground">User</span>
-                <span className="font-medium">@{stamp.username}</span>
+                <span className="text-muted-foreground">User ID</span>
+                <span className="font-medium">{stamp.user_id.slice(0, 8)}</span>
               </div>
               <div className="flex items-center justify-between">
-                <span className="text-muted-foreground">Stop</span>
-                <span className="font-medium">{stamp.cafe_name}</span>
+                <span className="text-muted-foreground">Stop ID</span>
+                <span className="font-medium">{stamp.stop_id.slice(0, 8)}</span>
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-muted-foreground">

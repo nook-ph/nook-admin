@@ -4,7 +4,6 @@ import * as React from "react"
 import {
   Check,
   CaretDown,
-  WarningCircle,
 } from "@phosphor-icons/react"
 import { toast } from "sonner"
 
@@ -31,8 +30,8 @@ import {
   CommandList,
 } from "@/components/ui/command"
 import { cn } from "@/lib/utils"
-import { MOCK_USERS, MOCK_STAMPS } from "@/components/admin/crawls/stamps-mock-data"
-import type { MockCrawlStop } from "@/components/admin/crawls/mock-data"
+import type { CrawlStopWithCafe } from "@/lib/types/crawls"
+import { MOCK_USERS } from "@/components/admin/crawls/stamps-mock-data"
 
 export function GrantManualStampDialog({
   open,
@@ -41,7 +40,7 @@ export function GrantManualStampDialog({
 }: {
   open: boolean
   onOpenChange: (open: boolean) => void
-  stops: MockCrawlStop[]
+  stops: CrawlStopWithCafe[]
 }) {
   const [selectedUserId, setSelectedUserId] = React.useState<string | null>(null)
   const [selectedStopId, setSelectedStopId] = React.useState<string | null>(null)
@@ -59,20 +58,10 @@ export function GrantManualStampDialog({
 
   const MIN_NOTE_LENGTH = 15
 
-  const duplicateStamp = React.useMemo(() => {
-    if (!selectedUserId || !selectedStopId) return null
-    return (
-      MOCK_STAMPS.find(
-        (s) => s.user_id === selectedUserId && s.stop_id === selectedStopId
-      ) ?? null
-    )
-  }, [selectedUserId, selectedStopId])
-
   const isFormValid =
     selectedUserId &&
     selectedStopId &&
-    verificationNote.trim().length >= MIN_NOTE_LENGTH &&
-    !duplicateStamp
+    verificationNote.trim().length >= MIN_NOTE_LENGTH
 
   function resetForm() {
     setSelectedUserId(null)
@@ -261,22 +250,10 @@ export function GrantManualStampDialog({
               </p>
             </div>
 
-            {/* Duplicate warning */}
-            {duplicateStamp && (
-              <div className="flex items-start gap-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs dark:border-amber-800 dark:bg-amber-950">
-                <WarningCircle className="size-4 text-amber-600 dark:text-amber-400 mt-0.5 shrink-0" />
-                <p className="text-amber-900 dark:text-amber-100">
-                  This user has already claimed this stop on{" "}
-                  {new Date(
-                    duplicateStamp.claimed_at
-                  ).toLocaleDateString()}
-                  . Submitting will fail.
-                </p>
-              </div>
-            )}
+
 
             {/* Confirmation summary */}
-            {selectedUserId && selectedStopId && !duplicateStamp && (
+            {selectedUserId && selectedStopId && (
               <div className="rounded-lg border bg-muted/50 p-3 text-xs text-muted-foreground">
                 You are granting a manual stamp to{" "}
                 <span className="font-medium text-foreground">

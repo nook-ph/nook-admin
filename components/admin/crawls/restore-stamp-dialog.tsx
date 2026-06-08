@@ -15,7 +15,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
-import type { MockStamp } from "@/components/admin/crawls/stamps-mock-data"
+import type { CrawlStamp } from "@/lib/types/crawls"
 
 export function RestoreStampDialog({
   stamp,
@@ -23,7 +23,7 @@ export function RestoreStampDialog({
   onOpenChange,
   onRestore,
 }: {
-  stamp: MockStamp | null
+  stamp: CrawlStamp | null
   open: boolean
   onOpenChange: (open: boolean) => void
   onRestore: (stampId: string, note?: string) => void

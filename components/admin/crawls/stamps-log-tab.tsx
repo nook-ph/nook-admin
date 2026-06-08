@@ -35,14 +35,14 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
-import { MOCK_STAMPS } from "@/components/admin/crawls/stamps-mock-data"
-import type { MockStamp } from "@/components/admin/crawls/stamps-mock-data"
-import type { MockCrawlStop } from "@/components/admin/crawls/mock-data"
+import type { CrawlStamp, CrawlStopWithCafe } from "@/lib/types/crawls"
+import { getCrawlStamps } from "@/lib/queries/crawls"
 import { StampMethodBadge } from "@/components/admin/crawls/stamp-method-badge"
 import { StampVerifiedIndicator } from "@/components/admin/crawls/stamp-verified-indicator"
 import { GrantManualStampDialog } from "@/components/admin/crawls/grant-manual-stamp-dialog"
 import { RevokeStampDialog } from "@/components/admin/crawls/revoke-stamp-dialog"
 import { RestoreStampDialog } from "@/components/admin/crawls/restore-stamp-dialog"
+import { Skeleton } from "@/components/ui/skeleton"
 
 const PAGE_SIZE = 8
 
@@ -56,7 +56,7 @@ function formatTimestamp(iso: string) {
   })
 }
 
-function getStopLabel(stopId: string, stops: MockCrawlStop[]) {
+function getStopLabel(stopId: string, stops: CrawlStopWithCafe[]) {
   const stop = stops.find((s) => s.id === stopId)
   if (!stop) return "Unknown"
   return `Stop ${stop.stop_order} · ${stop.cafe_name}`
@@ -71,9 +71,10 @@ export function StampsLogTab({
   stops,
 }: {
   crawlId: string
-  stops: MockCrawlStop[]
+  stops: CrawlStopWithCafe[]
 }) {
-  const [stamps, setStamps] = React.useState<MockStamp[]>(MOCK_STAMPS)
+  const [stamps, setStamps] = React.useState<CrawlStamp[]>([])
+  const [loading, setLoading] = React.useState(true)
 
   const [search, setSearch] = React.useState("")
   const [stopFilter, setStopFilter] = React.useState("all")
@@ -87,9 +88,22 @@ export function StampsLogTab({
 
   const [grantOpen, setGrantOpen] = React.useState(false)
   const [revokingStamp, setRevokingStamp] =
-    React.useState<MockStamp | null>(null)
+    React.useState<CrawlStamp | null>(null)
   const [restoringStamp, setRestoringStamp] =
-    React.useState<MockStamp | null>(null)
+    React.useState<CrawlStamp | null>(null)
+
+  React.useEffect(() => {
+    setLoading(true)
+    getCrawlStamps(crawlId)
+      .then((data) => {
+        setStamps(data)
+        setLoading(false)
+      })
+      .catch(() => {
+        toast.error("Something went wrong")
+        setLoading(false)
+      })
+  }, [crawlId])
 
   const filtered = React.useMemo(() => {
     let result = [...stamps]
@@ -98,8 +112,7 @@ export function StampsLogTab({
       const q = search.toLowerCase()
       result = result.filter(
         (s) =>
-          s.username.toLowerCase().includes(q) ||
-          s.cafe_name.toLowerCase().includes(q)
+          s.user_id.toLowerCase().includes(q)
       )
     }
 
@@ -193,11 +206,20 @@ export function StampsLogTab({
     })
   }
 
+  if (loading) {
+    return (
+      <div className="flex flex-col gap-4">
+        <Skeleton className="h-8 w-40" />
+        <Skeleton className="h-10 w-full" />
+        <Skeleton className="h-96 w-full" />
+      </div>
+    )
+  }
+
   const hasResults = paginated.length > 0
 
   return (
     <div className="flex flex-col gap-4">
-        {/* Header */}
         <div className="flex items-center justify-between">
           <h2 className="text-lg font-semibold">Stamps Log</h2>
           <Button size="sm" onClick={() => setGrantOpen(true)}>
@@ -205,13 +227,12 @@ export function StampsLogTab({
           </Button>
         </div>
 
-        {/* Filter bar */}
         <div className="flex flex-wrap items-center gap-3">
           <div className="relative flex-1 min-w-[200px]">
             <MagnifyingGlass className="absolute left-2.5 top-1/2 -translate-y-1/2 size-4 text-muted-foreground pointer-events-none" />
             <Input
               className="pl-8"
-              placeholder="Search by username or cafe name..."
+              placeholder="Search by user ID..."
               value={search}
               onChange={(e) => {
                 setSearch(e.target.value)
@@ -309,7 +330,6 @@ export function StampsLogTab({
           )}
         </div>
 
-        {/* Stamps table */}
         <Table>
           <TableHeader>
             <TableRow>
@@ -337,36 +357,31 @@ export function StampsLogTab({
                         "bg-amber-50/50 dark:bg-amber-950/20"
                     )}
                   >
-                    {/* User */}
                     <TableCell>
                       <div className="flex items-center gap-2">
                         <Avatar className="size-7">
                           <AvatarFallback className="text-[10px]">
-                            {getInitials(stamp.username)}
+                            {getInitials(stamp.user_id)}
                           </AvatarFallback>
                         </Avatar>
                         <span className="text-sm font-medium">
-                          @{stamp.username}
+                          {stamp.user_id.slice(0, 8)}
                         </span>
                       </div>
                     </TableCell>
 
-                    {/* Stop */}
                     <TableCell className="text-xs text-muted-foreground">
                       {getStopLabel(stamp.stop_id, stops)}
                     </TableCell>
 
-                    {/* Claimed At */}
                     <TableCell className="text-xs whitespace-nowrap">
                       {formatTimestamp(stamp.claimed_at)}
                     </TableCell>
 
-                    {/* Method */}
                     <TableCell>
                       <StampMethodBadge method={stamp.claim_method} />
                     </TableCell>
 
-                    {/* Distance */}
                     <TableCell>
                       <span
                         className={cn(
@@ -383,7 +398,6 @@ export function StampsLogTab({
                       </span>
                     </TableCell>
 
-                    {/* GPS */}
                     <TableCell>
                       <Tooltip>
                         <TooltipTrigger asChild>
@@ -406,14 +420,12 @@ export function StampsLogTab({
                       </Tooltip>
                     </TableCell>
 
-                    {/* Verified */}
                     <TableCell>
                       <StampVerifiedIndicator
                         isVerified={stamp.is_verified}
                       />
                     </TableCell>
 
-                    {/* Verification Note */}
                     <TableCell>
                       {stamp.verification_note ? (
                         <Tooltip>
@@ -437,7 +449,6 @@ export function StampsLogTab({
                       )}
                     </TableCell>
 
-                    {/* Actions */}
                     <TableCell>
                       <div className="flex items-center gap-1">
                         {stamp.is_verified ? (
@@ -514,7 +525,7 @@ export function StampsLogTab({
                   className="text-center text-muted-foreground py-12"
                 >
                   <div className="flex flex-col items-center gap-2">
-                    {MOCK_STAMPS.length === 0 ? (
+                    {stamps.length === 0 ? (
                       <p>No stamps claimed yet.</p>
                     ) : (
                       <>
@@ -535,7 +546,6 @@ export function StampsLogTab({
           </TableBody>
         </Table>
 
-        {/* Pagination */}
         <div className="flex items-center justify-between gap-3">
           <p className="text-sm text-muted-foreground">
             Showing{" "}
@@ -575,14 +585,12 @@ export function StampsLogTab({
           </div>
         </div>
 
-        {/* Grant Manual Stamp Dialog */}
         <GrantManualStampDialog
           open={grantOpen}
           onOpenChange={setGrantOpen}
           stops={stops}
         />
 
-        {/* Revoke Dialog */}
         <RevokeStampDialog
           stamp={revokingStamp}
           open={revokingStamp !== null}
@@ -590,7 +598,6 @@ export function StampsLogTab({
           onRevoke={handleRevoke}
         />
 
-        {/* Restore Dialog */}
         <RestoreStampDialog
           stamp={restoringStamp}
           open={restoringStamp !== null}
