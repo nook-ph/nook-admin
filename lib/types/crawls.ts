@@ -92,6 +92,32 @@ export type CafeSearchResult = {
   neighborhood: string | null
 }
 
+export type StampLogEntry = CrawlStamp & {
+  username: string
+  avatar_url: string | null
+  cafe_name: string
+  cafe_lat: number
+  cafe_lng: number
+  stop_order: number
+  stop_label: string | null
+  tier: string
+}
+
+export type StopOption = {
+  id: string
+  stop_order: number
+  label: string | null
+  tier: string
+  cafe_id: string
+  cafe_name: string
+}
+
+export type ProfileSearchResult = {
+  id: string
+  username: string
+  avatar_url: string | null
+}
+
 const VALID_TRANSITIONS: Record<CrawlStatus, CrawlStatus[]> = {
   draft: ["active"],
   active: ["completed", "cancelled"],

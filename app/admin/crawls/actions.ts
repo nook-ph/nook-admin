@@ -377,6 +377,38 @@ export async function searchCafesAction(
   )
 }
 
+export async function searchProfilesAction(
+  query: string,
+): Promise<{ id: string; username: string; avatar_url: string | null }[]> {
+  const supabase = createAdminClient()
+  const { data, error } = await supabase
+    .from("profiles")
+    .select("id, username, avatar_url")
+    .or(`username.ilike.%${query}%,email.ilike.%${query}%`)
+    .order("username", { ascending: true })
+    .limit(20)
+
+  if (error) throw error
+  return data ?? []
+}
+
+export async function checkDuplicateStampAction(
+  stopId: string,
+  userId: string,
+): Promise<{ id: string; claimed_at: string } | null> {
+  const supabase = createAdminClient()
+  const { data, error } = await supabase
+    .from("crawl_stamps")
+    .select("id, claimed_at")
+    .eq("stop_id", stopId)
+    .eq("user_id", userId)
+    .limit(1)
+    .maybeSingle()
+
+  if (error) throw error
+  return data
+}
+
 export async function deleteCrawlTierAction(tierId: string) {
   try {
     const supabase = createAdminClient()

@@ -6,6 +6,9 @@ import type {
   CrawlStats,
   CafeSearchResult,
   CrawlStamp,
+  StampLogEntry,
+  StopOption,
+  ProfileSearchResult,
 } from "@/lib/types/crawls"
 
 export async function getCrawls(): Promise<Crawl[]> {
@@ -180,4 +183,103 @@ export async function getCrawlStamps(
 
   if (error) throw error
   return (data ?? []) as CrawlStamp[]
+}
+
+export async function getStampLogs(
+  crawlId: string,
+): Promise<StampLogEntry[]> {
+  const supabase = createAdminClient()
+  const { data, error } = await supabase
+    .from("crawl_stamps")
+    .select(`
+      *,
+      profiles!inner ( username, avatar_url ),
+      cafes!inner ( name, lat, lng ),
+      crawl_stops!inner ( stop_order, label, tier )
+    `)
+    .eq("crawl_id", crawlId)
+    .order("claimed_at", { ascending: false })
+
+  if (error) throw error
+
+  return ((data ?? []) as Array<Record<string, unknown>>).map((row) => {
+    const profile = row.profiles as { username: string; avatar_url: string | null }
+    const cafe = row.cafes as { name: string; lat: number; lng: number }
+    const stop = row.crawl_stops as { stop_order: number; label: string | null; tier: string }
+    return {
+      ...row,
+      username: profile.username,
+      avatar_url: profile.avatar_url,
+      cafe_name: cafe.name,
+      cafe_lat: cafe.lat,
+      cafe_lng: cafe.lng,
+      stop_order: stop.stop_order,
+      stop_label: stop.label,
+      tier: stop.tier,
+    } as StampLogEntry
+  })
+}
+
+export async function getCrawlStopsForFilter(
+  crawlId: string,
+): Promise<StopOption[]> {
+  const supabase = createAdminClient()
+  const { data, error } = await supabase
+    .from("crawl_stops")
+    .select(`
+      id,
+      stop_order,
+      label,
+      tier,
+      cafe_id,
+      cafes!inner ( name )
+    `)
+    .eq("crawl_id", crawlId)
+    .order("stop_order", { ascending: true })
+
+  if (error) throw error
+
+  return ((data ?? []) as Array<Record<string, unknown>>).map((row) => {
+    const cafe = row.cafes as { name: string }
+    return {
+      id: row.id as string,
+      stop_order: row.stop_order as number,
+      label: row.label as string | null,
+      tier: row.tier as string,
+      cafe_id: row.cafe_id as string,
+      cafe_name: cafe.name,
+    } as StopOption
+  })
+}
+
+export async function searchProfiles(
+  query: string,
+): Promise<ProfileSearchResult[]> {
+  const supabase = createAdminClient()
+  const { data, error } = await supabase
+    .from("profiles")
+    .select("id, username, avatar_url")
+    .or(`username.ilike.%${query}%,email.ilike.%${query}%`)
+    .order("username", { ascending: true })
+    .limit(20)
+
+  if (error) throw error
+  return (data ?? []) as ProfileSearchResult[]
+}
+
+export async function checkDuplicateStamp(
+  stopId: string,
+  userId: string,
+): Promise<{ id: string; claimed_at: string } | null> {
+  const supabase = createAdminClient()
+  const { data, error } = await supabase
+    .from("crawl_stamps")
+    .select("id, claimed_at")
+    .eq("stop_id", stopId)
+    .eq("user_id", userId)
+    .limit(1)
+    .maybeSingle()
+
+  if (error) throw error
+  return data
 }

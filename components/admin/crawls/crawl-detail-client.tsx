@@ -34,6 +34,8 @@ import type {
   CrawlStopWithCafe,
   CrawlStats,
   CrawlStatus,
+  StampLogEntry,
+  StopOption,
 } from "@/lib/types/crawls"
 import { updateCrawlStatusAction, toggleFeaturedAction } from "@/app/admin/crawls/actions"
 
@@ -42,11 +44,15 @@ export function CrawlDetailClient({
   stops: initialStops,
   tiers: initialTiers,
   stats: initialStats,
+  stampLogs: initialStampLogs,
+  stopOptions: initialStopOptions,
 }: {
   crawl: Crawl
   stops: CrawlStopWithCafe[]
   tiers: CrawlTier[]
   stats: CrawlStats
+  stampLogs: StampLogEntry[]
+  stopOptions: StopOption[]
 }) {
   const [currentCrawl, setCurrentCrawl] = React.useState(initialCrawl)
   const [isFeatured, setIsFeatured] = React.useState(initialCrawl.is_featured)
@@ -208,7 +214,12 @@ export function CrawlDetailClient({
           />
         </TabsContent>
         <TabsContent value="stamps" className="pt-4">
-          <StampsLogTab crawlId={currentCrawl.id} stops={initialStops} />
+          <StampsLogTab
+            crawlId={currentCrawl.id}
+            stops={initialStops}
+            initialStampLogs={initialStampLogs}
+            stopOptions={initialStopOptions}
+          />
         </TabsContent>
       </Tabs>
     </div>
