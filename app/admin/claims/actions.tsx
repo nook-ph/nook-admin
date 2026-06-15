@@ -190,6 +190,43 @@ export async function approveClaimAction(claimId: string) {
     }
     console.log("[APPROVE:6] Cafe updated", cafeData);
 
+    const { data: ownerProfile } = await supabase
+      .from("profiles")
+      .select("full_name, email")
+      .eq("id", claim.claimant_id)
+      .single();
+
+    if (ownerProfile?.email && cafeData?.name) {
+      const dashboardUrl = `${process.env.BUSINESS_SITE_URL ?? "https://nook.com"}/owner/dashboard`;
+      const { data: emailData, error: emailError } = await resend.emails.send({
+        from: "Nook <noreply@surgestudio.tech>",
+        to: [ownerProfile.email],
+        subject: `Your claim for ${cafeData.name} has been approved!`,
+        react: (
+          <CafeClaimApprovedEmail
+            ownerName={ownerProfile.full_name ?? "there"}
+            cafeName={cafeData.name}
+            dashboardUrl={dashboardUrl}
+            email={ownerProfile.email}
+          />
+        ),
+      });
+
+      if (emailError) {
+        console.error("[EMAIL] Failed to send approval email:", {
+          name: emailError.name,
+          message: emailError.message,
+        });
+      } else {
+        console.log(
+          "[EMAIL] Approval email sent:",
+          emailData?.id,
+          "→",
+          ownerProfile.email,
+        );
+      }
+    }
+
     console.log("[APPROVE] All steps complete, revalidating");
     revalidatePath("/admin/claims");
     return { success: true };
