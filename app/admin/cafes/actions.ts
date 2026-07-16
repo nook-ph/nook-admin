@@ -2,11 +2,14 @@
 
 import { revalidatePath } from "next/cache"
 import { createAdminClient } from "@/lib/supabase/admin"
+import { requireSuperadmin } from "@/lib/auth/require-superadmin"
 
 export async function setCafeStatusAction(
   id: string,
   status: "draft" | "active" | "inactive"
 ) {
+  await requireSuperadmin()
+
   const supabase = createAdminClient()
   const { error } = await supabase
     .from("cafes")
@@ -18,6 +21,8 @@ export async function setCafeStatusAction(
 }
 
 export async function deleteCafeAction(id: string) {
+  await requireSuperadmin()
+
   const supabase = createAdminClient()
   const { error } = await supabase
     .from("cafes")

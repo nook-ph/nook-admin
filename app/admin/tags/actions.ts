@@ -1,5 +1,7 @@
 "use server"
 
+import { requireSuperadmin } from "@/lib/auth/require-superadmin"
+
 import { revalidatePath, revalidateTag } from "next/cache"
 import {
   createTag,
@@ -12,6 +14,8 @@ export async function createTagAction(payload: {
   category: string
   icon_name?: string
 }) {
+  await requireSuperadmin()
+
   try {
     await createTag(payload)
     revalidateTag("admin-tags", "max")
@@ -26,6 +30,8 @@ export async function createTagAction(payload: {
 }
 
 export async function toggleTagActiveAction(id: string, is_active: boolean) {
+  await requireSuperadmin()
+
   try {
     await updateTag(id, { is_active })
     revalidateTag("admin-tags", "max")
@@ -43,6 +49,8 @@ export async function updateTagAction(
   id: string,
   payload: { name?: string; icon_name?: string }
 ) {
+  await requireSuperadmin()
+
   try {
     await updateTag(id, payload)
     revalidateTag("admin-tags", "max")
@@ -57,6 +65,8 @@ export async function updateTagAction(
 }
 
 export async function deleteTagAction(id: string) {
+  await requireSuperadmin()
+
   try {
     await deleteTag(id)
     revalidateTag("admin-tags", "max")

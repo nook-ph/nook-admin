@@ -1,5 +1,7 @@
 "use server"
 
+import { requireSuperadmin } from "@/lib/auth/require-superadmin"
+
 import { revalidatePath, revalidateTag } from "next/cache"
 import { redirect } from "next/navigation"
 import { createCafe, updateCafe, type Cafe } from "@/lib/queries/cafes"
@@ -37,6 +39,8 @@ export async function createCafeAction(payload: {
     image_url?: string | null
   }[]
 }) {
+  await requireSuperadmin()
+
   const { tagIds, featuredTagIds, menuItems = [], ...cafePayload } = payload
   const cafe = await createCafe(cafePayload)
 
@@ -85,6 +89,8 @@ export async function updateCafeAction(
     }[]
   }
 ) {
+  await requireSuperadmin()
+
   const { tagIds, featuredTagIds, menuItems = [], ...cafePayload } = payload
   await updateCafe(id, cafePayload)
 
@@ -119,6 +125,8 @@ export async function updateCafeTagsAction(
   tagIds: string[],
   featuredTagIds: string[]
 ) {
+  await requireSuperadmin()
+
   await setCafeTags(cafeId, tagIds, featuredTagIds)
   revalidateTag("admin-tags", "max")
   revalidatePath(`/admin/cafes/${cafeId}/edit`)
@@ -134,6 +142,8 @@ export async function upsertMenuItemAction(item: {
   is_highlight: boolean
   image_url?: string | null
 }) {
+  await requireSuperadmin()
+
   const data = await upsertMenuItem(item)
   revalidatePath(`/admin/cafes/${item.cafe_id}/edit`)
   return { id: data.id as string }
@@ -144,6 +154,8 @@ export async function createMenuCategoryAction(category: {
   is_global: boolean
   cafeId: string | null
 }) {
+  await requireSuperadmin()
+
   const data = await createMenuCategory({
     name: category.name,
     is_global: category.is_global,
@@ -158,6 +170,8 @@ export async function updateMenuCategoryAction(category: {
   name: string
   cafeId?: string
 }) {
+  await requireSuperadmin()
+
   const data = await updateMenuCategory({
     id: category.id,
     name: category.name,
@@ -168,6 +182,8 @@ export async function updateMenuCategoryAction(category: {
 }
 
 export async function deleteMenuItemAction(id: string, cafeId: string) {
+  await requireSuperadmin()
+
   await deleteMenuItem(id)
   revalidatePath(`/admin/cafes/${cafeId}/edit`)
 }
@@ -176,6 +192,8 @@ export async function deleteMenuCategoryAction(
   id: string,
   cafeId?: string
 ) {
+  await requireSuperadmin()
+
   try {
     await deleteMenuCategory(id)
     revalidatePath("/admin/tags")

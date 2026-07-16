@@ -1,5 +1,7 @@
 "use server"
 
+import { requireSuperadmin } from "@/lib/auth/require-superadmin"
+
 import { uploadFile, deleteFile, getKeyFromUrl } from "@/lib/upload"
 import { createAdminClient } from "@/lib/supabase/admin"
 import { revalidatePath }    from "next/cache"
@@ -27,6 +29,8 @@ export async function uploadCafeHeroAction(
   formData: FormData,
   cafeId: string
 ) {
+  await requireSuperadmin()
+
   const file = formData.get("file") as File
   if (!file) throw new Error("No file provided")
   validateFile(file)
@@ -59,6 +63,8 @@ export async function uploadCafePhotoAction(
   formData: FormData,
   cafeId: string
 ) {
+  await requireSuperadmin()
+
   const file = formData.get("file") as File
   if (!file) throw new Error("No file provided")
   validateFile(file)
@@ -106,6 +112,8 @@ export async function deleteCafePhotoAction(
   isHero: boolean,
   cafeId: string
 ) {
+  await requireSuperadmin()
+
   const targetCafeId = requireCafeId(cafeId)
   const supabase     = createAdminClient()
 
@@ -153,6 +161,8 @@ export async function reorderCafePhotosAction(
   orderedPhotoUrls: string[],
   cafeId: string
 ) {
+  await requireSuperadmin()
+
   const targetCafeId = requireCafeId(cafeId)
 
   if (orderedPhotoUrls.length > CAFE_PHOTO_LIMIT) {
@@ -187,6 +197,8 @@ export async function uploadMenuItemImageAction(
   menuItemId: string,
   cafeId: string
 ) {
+  await requireSuperadmin()
+
   const file = formData.get("file") as File
   if (!file) throw new Error("No file provided")
   validateFile(file)
@@ -218,6 +230,8 @@ export async function deleteMenuItemImageAction(
   imageUrl: string,
   cafeId: string
 ) {
+  await requireSuperadmin()
+
   const targetCafeId = requireCafeId(cafeId)
 
   await deleteFile(getKeyFromUrl(imageUrl))

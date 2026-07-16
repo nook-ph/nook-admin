@@ -1,5 +1,7 @@
 "use server"
 
+import { requireSuperadmin } from "@/lib/auth/require-superadmin"
+
 import { revalidatePath } from "next/cache"
 import { createAdminClient } from "@/lib/supabase/admin"
 import type { CrawlStatus } from "@/lib/types/crawls"
@@ -16,6 +18,8 @@ export async function createCrawlAction(data: {
   stamp_template_url: string | null
   is_featured: boolean
 }) {
+  await requireSuperadmin()
+
   try {
     const supabase = createAdminClient()
     const { data: crawl, error } = await supabase
@@ -62,6 +66,8 @@ export async function updateCrawlAction(
     is_featured?: boolean
   },
 ) {
+  await requireSuperadmin()
+
   try {
     const supabase = createAdminClient()
     const { error } = await supabase
@@ -86,6 +92,8 @@ export async function updateCrawlStatusAction(
   id: string,
   newStatus: CrawlStatus,
 ) {
+  await requireSuperadmin()
+
   try {
     const supabase = createAdminClient()
 
@@ -122,6 +130,8 @@ export async function updateCrawlStatusAction(
 }
 
 export async function toggleFeaturedAction(id: string, isFeatured: boolean) {
+  await requireSuperadmin()
+
   try {
     const supabase = createAdminClient()
     const { error } = await supabase
@@ -146,6 +156,8 @@ export async function checkSlugUniquenessAction(
   slug: string,
   excludeId?: string,
 ) {
+  await requireSuperadmin()
+
   try {
     const supabase = createAdminClient()
     let query = supabase
@@ -178,6 +190,8 @@ export async function addCrawlStopAction(
     label: string | null
   },
 ) {
+  await requireSuperadmin()
+
   try {
     const supabase = createAdminClient()
     const { error } = await supabase.from("crawl_stops").insert({
@@ -210,6 +224,8 @@ export async function updateCrawlStopAction(
     label?: string | null
   },
 ) {
+  await requireSuperadmin()
+
   try {
     const supabase = createAdminClient()
     const { error } = await supabase
@@ -229,6 +245,8 @@ export async function updateCrawlStopAction(
 }
 
 export async function removeCrawlStopAction(stopId: string) {
+  await requireSuperadmin()
+
   try {
     const supabase = createAdminClient()
     const { error } = await supabase
@@ -250,6 +268,8 @@ export async function removeCrawlStopAction(stopId: string) {
 export async function reorderStopsAction(
   updates: Array<{ id: string; stop_order: number }>,
 ) {
+  await requireSuperadmin()
+
   try {
     const supabase = createAdminClient()
     const promises = updates.map((u) =>
@@ -283,6 +303,8 @@ export async function createCrawlTierAction(
     badge_image_url: string | null
   },
 ) {
+  await requireSuperadmin()
+
   try {
     const supabase = createAdminClient()
     const { data: created, error } = await supabase
@@ -328,6 +350,8 @@ export async function updateCrawlTierAction(
     badge_image_url?: string | null
   },
 ) {
+  await requireSuperadmin()
+
   try {
     const supabase = createAdminClient()
     const { error } = await supabase
@@ -354,6 +378,8 @@ export async function searchCafesAction(
   q: string,
   crawlId: string,
 ): Promise<{ id: string; name: string; address: string | null; neighborhood: string | null }[]> {
+  await requireSuperadmin()
+
   const supabase = createAdminClient()
 
   const { data: existing } = await supabase
@@ -380,6 +406,8 @@ export async function searchCafesAction(
 export async function searchProfilesAction(
   query: string,
 ): Promise<{ id: string; username: string; avatar_url: string | null }[]> {
+  await requireSuperadmin()
+
   const supabase = createAdminClient()
   const { data, error } = await supabase
     .from("profiles")
@@ -396,6 +424,8 @@ export async function checkDuplicateStampAction(
   stopId: string,
   userId: string,
 ): Promise<{ id: string; claimed_at: string } | null> {
+  await requireSuperadmin()
+
   const supabase = createAdminClient()
   const { data, error } = await supabase
     .from("crawl_stamps")
@@ -410,6 +440,8 @@ export async function checkDuplicateStampAction(
 }
 
 export async function deleteCrawlTierAction(tierId: string) {
+  await requireSuperadmin()
+
   try {
     const supabase = createAdminClient()
     const { error } = await supabase

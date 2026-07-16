@@ -12,12 +12,20 @@ const resend = new Resend(process.env.RESEND_API_KEY);
 type ClaimStatus = "under_review" | "approved" | "rejected";
 type AuditLogMetadata = Record<string, string | number | boolean | null>;
 
+// This checked only that SOMEONE was signed in, despite the name and the error
+// strings — any authenticated user passed. It matters because approveClaimAction
+// escalates to the service role and grants app_metadata.role = "cafe_owner", so
+// the missing role check was a path to self-granting ownership of any cafe. It
+// was masked only by the cafe_claims RLS policy, one policy edit from being live.
 async function requireSuperadminId(
   supabase: Awaited<ReturnType<typeof createClient>>,
 ) {
   const { data, error } = await supabase.auth.getUser();
   if (error) throw new Error("Unable to verify superadmin session");
   if (!data.user) throw new Error("Superadmin user not found");
+  if (data.user.app_metadata?.role !== "superadmin") {
+    throw new Error("Not authorized: superadmin only");
+  }
   return data.user.id;
 }
 
@@ -117,7 +125,6 @@ export async function approveClaimAction(claimId: string) {
       console.error("[APPROVE:1] Auth failed", e);
       return { success: false as const, error: "Authentication failed" };
     }
-    console.log("[APPROVE:1] Auth ok", actorId);
 
     const { data: claim, error: claimError } = await supabase
       .from("cafe_claims")
@@ -129,7 +136,6 @@ export async function approveClaimAction(claimId: string) {
       console.error("[APPROVE:2] Claim fetch failed", claimError);
       return { success: false as const, error: "Claim not found" };
     }
-    console.log("[APPROVE:2] Claim fetched", claim);
 
     const now = new Date().toISOString();
 
@@ -147,7 +153,6 @@ export async function approveClaimAction(claimId: string) {
       console.error("[APPROVE:3] Claim update failed", claimUpdateError);
       return { success: false as const, error: "Failed to update claim" };
     }
-    console.log("[APPROVE:3] Claim status updated");
 
     const { error: metaError } = await supabaseAdmin.auth.admin.updateUserById(
       claim.claimant_id,
@@ -158,7 +163,6 @@ export async function approveClaimAction(claimId: string) {
       console.error("[APPROVE:4] Auth metadata failed", metaError);
       return { success: false as const, error: "Failed to update user role" };
     }
-    console.log("[APPROVE:4] Auth metadata updated");
 
     const { error: linkError } = await supabaseAdmin
       .from("cafe_owner_cafe")
@@ -175,7 +179,6 @@ export async function approveClaimAction(claimId: string) {
         error: "Failed to create owner–cafe link",
       };
     }
-    console.log("[APPROVE:5] cafe_owner_cafe inserted");
 
     const { data: cafeData, error: cafeError } = await supabaseAdmin
       .from("cafes")
@@ -188,7 +191,6 @@ export async function approveClaimAction(claimId: string) {
       console.error("[APPROVE:6] Cafe update failed", cafeError);
       return { success: false as const, error: "Failed to update cafe" };
     }
-    console.log("[APPROVE:6] Cafe updated", cafeData);
 
     const { data: ownerProfile } = await supabase
       .from("profiles")
@@ -218,16 +220,10 @@ export async function approveClaimAction(claimId: string) {
           message: emailError.message,
         });
       } else {
-        console.log(
-          "[EMAIL] Approval email sent:",
-          emailData?.id,
-          "→",
-          ownerProfile.email,
-        );
+        console.log("[EMAIL] Approval email sent:", emailData?.id);
       }
     }
 
-    console.log("[APPROVE] All steps complete, revalidating");
     revalidatePath("/admin/claims");
     return { success: true };
   } catch (error) {
@@ -306,12 +302,7 @@ export async function rejectClaimAction(
             message: emailError.message,
           });
         } else {
-          console.log(
-            "[EMAIL] Rejection email sent:",
-            emailData?.id,
-            "→",
-            ownerProfile.email,
-          );
+          console.log("[EMAIL] Rejection email sent:", emailData?.id);
         }
       }
     }

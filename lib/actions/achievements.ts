@@ -1,5 +1,7 @@
 "use server"
 
+import { requireSuperadmin } from "@/lib/auth/require-superadmin"
+
 import { revalidatePath } from "next/cache"
 import {
   createAchievement as dbCreateAchievement,
@@ -18,6 +20,8 @@ export type ActionResult<T = void> =
 export async function createAchievementAction(
   input: AchievementInsert,
 ): Promise<ActionResult> {
+  await requireSuperadmin()
+
   try {
     await dbCreateAchievement(input)
     revalidatePath("/admin/achievements")
@@ -34,6 +38,8 @@ export async function updateAchievementAction(
   id: string,
   input: AchievementUpdate,
 ): Promise<ActionResult> {
+  await requireSuperadmin()
+
   try {
     await dbUpdateAchievement(id, input)
     revalidatePath("/admin/achievements")
@@ -50,6 +56,8 @@ export async function checkSlugAction(
   slug: string,
   excludeId?: string,
 ): Promise<ActionResult<{ exists: boolean }>> {
+  await requireSuperadmin()
+
   try {
     const exists = await checkAchievementSlugExists(slug, excludeId)
     return { success: true, data: { exists } }
@@ -69,6 +77,8 @@ export async function awardAchievementAction(input: {
   source_ref_id?: string | null
   metadata?: Record<string, unknown> | null
 }): Promise<ActionResult> {
+  await requireSuperadmin()
+
   try {
     await dbAwardAchievement(input)
     revalidatePath("/admin/achievements")
@@ -85,6 +95,8 @@ export async function checkDuplicateAwardAction(
   userId: string,
   achievementId: string,
 ): Promise<ActionResult<{ earned_at: string } | null>> {
+  await requireSuperadmin()
+
   try {
     const result = await checkDuplicateAward(userId, achievementId)
     return { success: true, data: result }
@@ -109,6 +121,8 @@ export async function searchUsersAction(
     }>
   >
 > {
+  await requireSuperadmin()
+
   try {
     const users = await searchProfiles(query)
     return { success: true, data: users }
