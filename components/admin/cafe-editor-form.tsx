@@ -2102,8 +2102,9 @@ export function CafeEditorForm({
                     Search Address (Mapbox)
                   </label>
                   <div className={disabled ? "pointer-events-none opacity-50" : undefined}>
+                    {process.env.NEXT_PUBLIC_MAPBOX_TOKEN ? (
                     <SearchBox
-                      accessToken={process.env.NEXT_PUBLIC_MAPBOX_TOKEN!}
+                      accessToken={process.env.NEXT_PUBLIC_MAPBOX_TOKEN}
                       value={addressInput}
                       onChange={(value) => {
                         setAddressInput(value)
@@ -2147,6 +2148,13 @@ export function CafeEditorForm({
                         },
                       }}
                     />
+                    ) : (
+                      <p className="text-xs text-muted-foreground">
+                        Address search is disabled — set{" "}
+                        <code>NEXT_PUBLIC_MAPBOX_TOKEN</code> to enable it. Use
+                        the manual address and coordinate fields below.
+                      </p>
+                    )}
                   </div>
                 </div>
 

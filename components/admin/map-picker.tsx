@@ -4,7 +4,7 @@ import * as React from "react"
 import mapboxgl from "mapbox-gl"
 import "mapbox-gl/dist/mapbox-gl.css"
 
-mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN!
+const MAPBOX_TOKEN = process.env.NEXT_PUBLIC_MAPBOX_TOKEN ?? ""
 
 type Props = {
   lat: number
@@ -23,7 +23,10 @@ export function MapPicker({ lat, lng, onChange, disabled }: Props) {
   const defaultLng = lng || 123.8854
 
   React.useEffect(() => {
+    if (!MAPBOX_TOKEN) return
     if (!mapContainer.current || map.current) return
+
+    mapboxgl.accessToken = MAPBOX_TOKEN
 
     map.current = new mapboxgl.Map({
       container: mapContainer.current,
@@ -74,6 +77,18 @@ export function MapPicker({ lat, lng, onChange, disabled }: Props) {
       duration: 1000,
     })
   }, [lat, lng])
+
+  if (!MAPBOX_TOKEN) {
+    return (
+      <div className="flex h-64 w-full flex-col items-center justify-center gap-1 rounded-lg border border-dashed bg-muted/40 p-4 text-center">
+        <p className="text-sm font-medium">Map unavailable</p>
+        <p className="text-xs text-muted-foreground">
+          Set <code>NEXT_PUBLIC_MAPBOX_TOKEN</code> in <code>.env.local</code> to
+          enable the map. You can still set coordinates manually below.
+        </p>
+      </div>
+    )
+  }
 
   return (
     <div
