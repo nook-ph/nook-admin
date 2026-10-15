@@ -356,6 +356,15 @@ function SectionEditor({
         />
       </Field>
 
+      {(s.type === "custom" || (s.id === "featured" && (s.cafe_ids?.length ?? 0) > 0)) && (
+        <p className="text-[13px] text-muted-foreground">
+          Banner link to this shelf:{" "}
+          <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-xs text-foreground select-all">
+            nook://shelf/{s.id}
+          </code>
+        </p>
+      )}
+
       {s.type === "builtin" && s.id === "featured" && (
         <CafePicker
           id={s.id}
