@@ -55,6 +55,7 @@ function countChanges(base: HomeLayoutDocument, cur: HomeLayoutDocument) {
   let n = 0
   if (!same(a.banner, b.banner)) n++
   if (a.respect_purpose !== b.respect_purpose) n++
+  if ((a.pin_top ?? true) !== (b.pin_top ?? true)) n++
   const byId = new Map(a.sections.map((s) => [s.id, s]))
   for (const s of b.sections) if (!same(byId.get(s.id), s)) n++
   for (const s of a.sections) if (!b.sections.some((x) => x.id === s.id)) n++
@@ -374,7 +375,7 @@ export function HomeLayoutEditor({
           <FormSection id="versions" title="Versions" description="Every publish is kept. Times are Manila time.">
             <Versions
               history={history}
-              disabled={missingTable}
+              disabled={missingTable || uploading}
               busyId={busyId === "save" || busyId === "publish" ? "busy" : busyId}
               previewId={previewVersion?.id ?? null}
               onPreview={(v) => {
@@ -406,7 +407,7 @@ export function HomeLayoutEditor({
                     live: previewVersion.status === "published",
                     onBack: () => setPreviewVersion(null),
                     onRestore:
-                      previewVersion.status === "published" || missingTable
+                      previewVersion.status === "published" || missingTable || uploading
                         ? undefined
                         : () => setRestoreVersion(previewVersion),
                   }

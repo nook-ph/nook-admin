@@ -96,8 +96,10 @@ export async function publishHomeLayoutAction(
     revalidatePath("/admin/home")
     return { success: true, version, draftUpdatedAt }
   } catch (error) {
-    // The draft may have been saved before the publish failed: hand back its
-    // stamp so the retry isn't taken for someone else's edit.
+    // The draft may have been saved before the publish failed: refresh the
+    // page so the editor's baseline is that draft, and hand back its stamp so
+    // the retry isn't taken for someone else's edit.
+    if (draftUpdatedAt) revalidatePath("/admin/home")
     return { success: false, error: message(error, "Couldn’t publish the layout"), draftUpdatedAt }
   }
 }
