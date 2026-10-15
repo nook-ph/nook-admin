@@ -103,7 +103,7 @@ export async function publishHomeLayoutAction(
     const doc = await checked(input)
     // Refused before anything goes live if another tab saved a newer draft.
     draftUpdatedAt = await saveHomeLayoutDraft(doc, userId, expectedUpdatedAt ?? null)
-    const version = await publishHomeLayout(doc, note, userId)
+    const version = await publishHomeLayout(doc, note?.trim() ? clip(note.trim()) : null, userId)
     revalidatePath("/admin/home")
     return { success: true, version, draftUpdatedAt }
   } catch (error) {
