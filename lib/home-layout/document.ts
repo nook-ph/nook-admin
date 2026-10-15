@@ -167,14 +167,15 @@ export function sectionTitle(section: HomeSection) {
 
 export function normalizeDocument(input: unknown): HomeLayoutDocument {
   const doc = (input && typeof input === "object" ? input : {}) as Record<string, unknown>
-  // As the app: unreadable entries are skipped and a repeated id keeps its first place.
-  const seen = new Set<string>()
-  const sections = Array.isArray(doc.sections)
-    ? doc.sections
-        .filter(isSection)
-        .map(normalizeSection)
-        .filter((s) => !seen.has(s.id) && !!seen.add(s.id))
-    : []
+  // As the app: a repeated id keeps the first copy the phone can read (the
+  // app skips unreadable entries before it dedupes), else the first copy.
+  const all = Array.isArray(doc.sections) ? doc.sections.filter(isSection).map(normalizeSection) : []
+  const chosen = new Map<string, HomeSection>()
+  for (const s of all) {
+    const prev = chosen.get(s.id)
+    if (!prev || (!readableOnPhone(prev) && readableOnPhone(s))) chosen.set(s.id, s)
+  }
+  const sections = all.filter((s) => chosen.get(s.id) === s)
   const listed = sections.length > 0 ? sections : defaultSections()
   return {
     schema: 1,
@@ -214,9 +215,19 @@ function normalizeBanner(v: unknown): Banner | null {
   }
 }
 
+/** Whether nook-mobile HomeSection.tryParse keeps this entry. */
+function readableOnPhone(s: HomeSection) {
+  if (s.type === "builtin") return true
+  if (!s.title.trim()) return false
+  return s.source === "picked" || (s.source === "rule" && !!s.rule?.tag)
+}
+
 function normalizeSection(s: HomeSection): HomeSection {
   const raw = s as unknown as Record<string, unknown>
-  const ids = Array.isArray(raw.cafe_ids) ? raw.cafe_ids.filter((x): x is string => typeof x === "string") : undefined
+  // Trimmed and de-duplicated, as the app reads them.
+  const ids = Array.isArray(raw.cafe_ids)
+    ? [...new Set(raw.cafe_ids.filter((x): x is string => typeof x === "string").map((x) => x.trim()).filter(Boolean))]
+    : undefined
   if (sectionType(raw) === "builtin") {
     // Only House picks takes cafe_ids (the app and cleanDocument ignore others).
     return {
@@ -268,11 +279,19 @@ function isSection(s: unknown): s is HomeSection {
   if (typeof v.id !== "string") return false
   const type = sectionType(v)
   if (type === "builtin") return (BUILTIN_IDS as string[]).includes(v.id)
-  return type === "custom" && v.id.startsWith("custom:")
+  // The app takes type "custom" with any id (custom: prefixed or not).
+  return type === "custom" && !(BUILTIN_IDS as string[]).includes(v.id)
 }
 
 function sectionType(v: { id?: unknown; type?: unknown }) {
   return v.type ?? (typeof v.id === "string" && v.id.startsWith("custom:") ? "custom" : "builtin")
+}
+
+/** Unique days in order; null for none or all seven (every day). */
+function dedupeDays(days: number[] | null | undefined) {
+  if (!Array.isArray(days)) return null
+  const unique = [...new Set(days)].sort((a, b) => a - b)
+  return unique.length > 0 && unique.length < 7 ? unique : null
 }
 
 /** The document as saved: trims text, drops empty optional fields so the
@@ -298,7 +317,7 @@ export function cleanDocument(doc: HomeLayoutDocument): HomeLayoutDocument {
     const out: Schedule = {
       starts_at: instant(s.starts_at),
       ends_at: instant(s.ends_at),
-      days: s.days && s.days.length > 0 && s.days.length < 7 ? [...s.days].sort() : null,
+      days: dedupeDays(s.days),
       hours: s.hours && s.hours.from && s.hours.to ? s.hours : null,
     }
     return out.starts_at || out.ends_at || out.days || out.hours ? out : null
