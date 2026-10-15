@@ -41,6 +41,8 @@ export function cafeArea(c: Pick<HomeCafe, "neighborhood" | "city">) {
   return [c.neighborhood, c.city].filter(Boolean).join(", ")
 }
 
+const RESULT_LIMIT = 8
+
 export function CafePicker({
   id,
   value,
@@ -65,11 +67,10 @@ export function CafePicker({
   const chosen = new Set(value)
 
   const q = query.trim().toLowerCase()
-  const results = q
-    ? cafes
-        .filter((c) => c.name.toLowerCase().includes(q) || cafeArea(c).toLowerCase().includes(q))
-        .slice(0, 8)
+  const matches = q
+    ? cafes.filter((c) => c.name.toLowerCase().includes(q) || cafeArea(c).toLowerCase().includes(q))
     : []
+  const results = matches.slice(0, RESULT_LIMIT)
 
   const move = (from: number, to: number) => {
     if (to < 0 || to >= value.length || from === to) return
@@ -142,6 +143,11 @@ export function CafePicker({
                   </li>
                 )
               })}
+              {matches.length > results.length && (
+                <li className="px-3 py-2 text-xs text-muted-foreground tabular-nums">
+                  Showing {results.length} of {matches.length}. Refine the search to see others.
+                </li>
+              )}
             </ul>
           )}
         </div>
@@ -169,7 +175,8 @@ export function CafePicker({
                   dragIndex === index && "opacity-50"
                 )}
               >
-                <DotsSixVerticalIcon className="size-4 shrink-0 cursor-grab text-muted-foreground" aria-hidden />
+                {/* HTML drag doesn't work on touch; phones use the arrows. */}
+                <DotsSixVerticalIcon className="hidden size-4 shrink-0 cursor-grab text-muted-foreground sm:block" aria-hidden />
                 <span className="w-5 shrink-0 text-right text-xs text-muted-foreground tabular-nums">{index + 1}</span>
                 <CafeThumb cafe={c} className="size-8" />
                 <span className="min-w-0 flex-1">
