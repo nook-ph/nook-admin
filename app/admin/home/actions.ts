@@ -14,6 +14,7 @@ import {
 } from "@/lib/home-layout/document"
 import {
   assertDraftUnchanged,
+  DRAFT_CONFLICT,
   getActiveTagNames,
   getHomeLayoutVersion,
   publishHomeLayout,
@@ -55,6 +56,12 @@ function message(error: unknown, fallback: string) {
         : ""
   if (!raw) return fallback
   return AUTH_MESSAGES[raw] ?? raw
+}
+
+/** At most LIMITS.note characters, never splitting an emoji (a lone
+ *  surrogate makes Postgres reject the note). */
+function clip(note: string) {
+  return Array.from(note).slice(0, LIMITS.note).join("")
 }
 
 /** Normalise, clean and validate a document coming from the client. */
@@ -113,8 +120,8 @@ export async function resetHomeLayoutAction(note: string | null, expectedUpdated
     // The confirm warned about this page's draft; refuse if another tab or
     // admin has saved a newer one since (nothing is published then).
     await assertDraftUnchanged(expectedUpdatedAt ?? null)
-    const version = await publishHomeLayout(resetDocument(), (note || "Reset to default").slice(0, LIMITS.note), userId)
-    return await afterPublish(version, cleanDocument(defaultDocument()), userId)
+    const version = await publishHomeLayout(resetDocument(), clip(note || "Reset to default"), userId)
+    return await afterPublish(version, cleanDocument(defaultDocument()), userId, expectedUpdatedAt ?? null)
   } catch (error) {
     return { success: false, error: message(error, "Couldn’t reset the layout") }
   }
@@ -141,23 +148,37 @@ export async function republishHomeVersionAction(id: string, expectedUpdatedAt: 
     const when = row.published_at
       ? new Intl.DateTimeFormat("en-PH", { timeZone: "Asia/Manila", dateStyle: "medium" }).format(new Date(row.published_at))
       : "an earlier version"
-    const version = await publishHomeLayout(doc, `Restored from ${when}${row.note ? ` (${row.note})` : ""}`.slice(0, LIMITS.note), userId)
+    const version = await publishHomeLayout(doc, clip(`Restored from ${when}${row.note ? ` (${row.note})` : ""}`), userId)
     // An empty (reset) document opens as the default order.
-    return await afterPublish(version, cleanDocument(normalizeDocument(doc)), userId)
+    return await afterPublish(version, cleanDocument(normalizeDocument(doc)), userId, expectedUpdatedAt ?? null)
   } catch (error) {
     return { success: false, error: message(error, "Couldn’t publish that version") }
   }
 }
 
-/** After Reset or a restore has gone live: the draft becomes `draft`. The
- *  publish already happened, so a failure here is a warning, not an error
- *  (an error would invite a retry that publishes a second version). */
-async function afterPublish(version: string, draft: HomeLayoutDocument, userId: string): Promise<Result> {
+/** After Reset or a restore has gone live: the draft becomes `draft`, but
+ *  only if it is still the one checked before publishing (a draft another tab
+ *  saved meanwhile is kept). The publish already happened, so a failure here
+ *  is a warning, not an error (an error would invite a retry that publishes a
+ *  second version). */
+async function afterPublish(
+  version: string,
+  draft: HomeLayoutDocument,
+  userId: string,
+  expectedUpdatedAt: string | null
+): Promise<Result> {
   revalidatePath("/admin/home")
   try {
-    const draftUpdatedAt = await saveHomeLayoutDraft(draft, userId)
+    const draftUpdatedAt = await saveHomeLayoutDraft(draft, userId, expectedUpdatedAt)
     return { success: true, version, draftUpdatedAt }
   } catch (error) {
+    if (error instanceof Error && error.message === DRAFT_CONFLICT) {
+      return {
+        success: true,
+        version,
+        warning: "It’s live. Someone saved the draft meanwhile, so it was kept as they left it. Reload before editing.",
+      }
+    }
     return {
       success: true,
       version,
