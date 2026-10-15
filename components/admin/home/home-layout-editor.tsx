@@ -36,6 +36,7 @@ import {
   MAX_CUSTOM_SHELVES,
   newCustomSection,
   normalizeDocument,
+  shelfLinkProblem,
   validateDocument,
   type HomeLayoutDocument,
 } from "@/lib/home-layout/document"
@@ -327,6 +328,7 @@ export function HomeLayoutEditor({
               now={now}
               onPreviewAt={previewAt}
               onUploadingChange={setUploading}
+              linkWarning={doc.banner?.enabled ? shelfLinkProblem(doc) : null}
             />
           </FormSection>
 
@@ -368,6 +370,27 @@ export function HomeLayoutEditor({
                 id="respect-purpose"
                 checked={doc.respect_purpose}
                 onCheckedChange={(respect_purpose) => setDoc((d) => ({ ...d, respect_purpose }))}
+              />
+            </div>
+            <div className="flex items-center justify-between gap-4">
+              <div className="min-w-0">
+                <label htmlFor="pin-top" className="text-sm font-medium">
+                  Keep Your places and Near you near the top
+                </label>
+                <p className="text-xs text-muted-foreground">
+                  On: the app keeps both in the first three shelves wherever you put them. Off: they stay where you put them.
+                </p>
+              </div>
+              <HomeSwitch
+                id="pin-top"
+                checked={doc.pin_top !== false}
+                onCheckedChange={(on) =>
+                  setDoc((d) => {
+                    const next = { ...d }
+                    delete next.pin_top
+                    return on ? next : { ...next, pin_top: false as const }
+                  })
+                }
               />
             </div>
           </FormSection>
