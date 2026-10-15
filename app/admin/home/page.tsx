@@ -4,7 +4,7 @@ import { HomeLayoutEditor } from "@/components/admin/home/home-layout-editor"
 import { isHomeLayoutFixture } from "@/lib/home-layout/dev-fixture"
 import { normalizeDocument } from "@/lib/home-layout/document"
 import {
-  getActiveTagNames,
+  fetchActiveTagNames,
   getHomeCafes,
   getHomeLayoutEditorData,
   initialDraftDocument,
@@ -16,7 +16,8 @@ export default async function HomeLayoutPage() {
   const [data, cafes, tags] = await Promise.all([
     getHomeLayoutEditorData(),
     getHomeCafes(),
-    getActiveTagNames(),
+    // Read now, as the save and publish check is, so both agree on the tags.
+    fetchActiveTagNames(),
   ])
 
   return (
