@@ -19,6 +19,10 @@ export const LIMITS = {
   note: 200,
 } as const
 
+/** Custom shelves that fit next to the nine builtins the editor always writes,
+ *  given the app reads at most LIMITS.sections sections. */
+export const MAX_CUSTOM_SHELVES = Math.min(LIMITS.customShelves, LIMITS.sections - 9)
+
 export type BuiltinId =
   | "your_places"
   | "nearby"
@@ -191,15 +195,22 @@ function isSection(s: unknown): s is HomeSection {
 /** The document as saved: trims text, drops empty optional fields so the
  *  phone reads null/absent rather than "". */
 export function cleanDocument(doc: HomeLayoutDocument): HomeLayoutDocument {
-  const clean = (v: string | null | undefined) => {
-    const t = (v ?? "").trim()
-    return t ? t : null
+  // Documents also arrive from the client and from old rows, so nothing here
+  // assumes a field has the type the editor gives it.
+  const str = (v: unknown) => (typeof v === "string" ? v.trim() : "")
+  const clean = (v: unknown) => str(v) || null
+  // A valid ISO instant becomes the form the editor writes
+  // (YYYY-MM-DDTHH:MM:00+08:00); anything else is kept for validation to flag.
+  const instant = (v: unknown) => {
+    const t = str(v)
+    if (!t) return null
+    return ISO_INSTANT.test(t) && !Number.isNaN(Date.parse(t)) ? manilaLocalToIso(isoToManilaLocal(t)) : t
   }
   const cleanSchedule = (s: Schedule | null | undefined): Schedule | null => {
-    if (!s) return null
+    if (!s || typeof s !== "object") return null
     const out: Schedule = {
-      starts_at: s.starts_at || null,
-      ends_at: s.ends_at || null,
+      starts_at: instant(s.starts_at),
+      ends_at: instant(s.ends_at),
       days: s.days && s.days.length > 0 && s.days.length < 7 ? [...s.days].sort() : null,
       hours: s.hours && s.hours.from && s.hours.to ? s.hours : null,
     }
@@ -210,8 +221,8 @@ export function cleanDocument(doc: HomeLayoutDocument): HomeLayoutDocument {
     respect_purpose: doc.respect_purpose,
     banner: doc.banner
       ? {
-          enabled: doc.banner.enabled,
-          title: doc.banner.title.trim(),
+          enabled: doc.banner.enabled !== false,
+          title: str(doc.banner.title),
           body: clean(doc.banner.body),
           image_url: clean(doc.banner.image_url),
           cta_label: clean(doc.banner.cta_label),
@@ -229,7 +240,7 @@ export function cleanDocument(doc: HomeLayoutDocument): HomeLayoutDocument {
         return {
           id: s.id,
           type: "builtin",
-          visible: s.visible,
+          visible: s.visible !== false,
           // The default title is left out, so a later default rename reaches it.
           ...(title && title !== def ? { title } : {}),
           ...(s.id === "featured" && s.cafe_ids && s.cafe_ids.length > 0 ? { cafe_ids: s.cafe_ids } : {}),
@@ -239,8 +250,8 @@ export function cleanDocument(doc: HomeLayoutDocument): HomeLayoutDocument {
       return {
         id: s.id,
         type: "custom",
-        visible: s.visible,
-        title: s.title.trim(),
+        visible: s.visible !== false,
+        title: str(s.title),
         source: s.source,
         ...(s.source === "picked"
           ? { cafe_ids: s.cafe_ids ?? [] }
@@ -258,6 +269,9 @@ export function cleanDocument(doc: HomeLayoutDocument): HomeLayoutDocument {
 export type LayoutErrors = Record<string, string>
 
 const HHMM = /^([01]\d|2[0-3]):[0-5]\d$/
+/** An ISO timestamp with an explicit offset, so every reader gets the same instant. */
+const ISO_INSTANT = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d+)?)?(Z|[+-]\d{2}:\d{2})$/
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
 export function validateLink(link: string | null | undefined): string | null {
   const v = (link ?? "").trim()
@@ -274,18 +288,19 @@ export function validateLink(link: string | null | undefined): string | null {
 
 function validateSchedule(prefix: string, s: Schedule | null | undefined, errors: LayoutErrors) {
   if (!s) return
-  if (s.starts_at && Number.isNaN(Date.parse(s.starts_at))) errors[`${prefix}.starts_at`] = "Not a valid date."
-  if (s.ends_at && Number.isNaN(Date.parse(s.ends_at))) errors[`${prefix}.ends_at`] = "Not a valid date."
+  const bad = (v: unknown) => !!v && (typeof v !== "string" || !ISO_INSTANT.test(v) || Number.isNaN(Date.parse(v)))
+  if (bad(s.starts_at)) errors[`${prefix}.starts_at`] = "Not a valid date."
+  if (bad(s.ends_at)) errors[`${prefix}.ends_at`] = "Not a valid date."
   if (s.starts_at && s.ends_at && Date.parse(s.ends_at) <= Date.parse(s.starts_at)) {
     errors[`${prefix}.ends_at`] = "Ends before it starts."
   }
-  if (s.days && s.days.some((d) => !Number.isInteger(d) || d < 1 || d > 7)) {
+  if (s.days && (!Array.isArray(s.days) || s.days.some((d) => !Number.isInteger(d) || d < 1 || d > 7))) {
     errors[`${prefix}.days`] = "Days run 1 (Monday) to 7 (Sunday)."
   }
   if (s.hours) {
     const { from, to } = s.hours
     if ((from && !to) || (!from && to)) errors[`${prefix}.hours`] = "Set both times, or neither."
-    else if (from && to && (!HHMM.test(from) || !HHMM.test(to))) errors[`${prefix}.hours`] = "Use HH:MM."
+    else if (from && to && (typeof from !== "string" || typeof to !== "string" || !HHMM.test(from) || !HHMM.test(to))) errors[`${prefix}.hours`] = "Use HH:MM."
     else if (from && to && from === to) errors[`${prefix}.hours`] = "From and to are the same time."
   }
 }
@@ -296,23 +311,27 @@ export function validateDocument(doc: HomeLayoutDocument, knownTags?: string[]):
     errors["sections"] = `At most ${LIMITS.sections} shelves; remove ${doc.sections.length - LIMITS.sections}.`
   }
   const customs = doc.sections.filter((s) => s.type === "custom")
-  if (customs.length > LIMITS.customShelves) {
-    errors["sections"] = `At most ${LIMITS.customShelves} custom shelves.`
+  if (customs.length > MAX_CUSTOM_SHELVES) {
+    errors["sections"] = [errors["sections"], `At most ${MAX_CUSTOM_SHELVES} custom shelves.`].filter(Boolean).join(" ")
   }
   const seen = new Set<string>()
   for (const s of doc.sections) {
     const p = `sections.${s.id}`
     if (seen.has(s.id)) errors[p] = "This shelf is listed twice."
     seen.add(s.id)
-    const title = (s.title ?? "").trim()
+    const title = typeof s.title === "string" ? s.title.trim() : ""
     if (title.length > LIMITS.title) errors[`${p}.title`] = `Keep it under ${LIMITS.title} characters.`
     if (s.type === "custom" && !title) errors[`${p}.title`] = "Give the shelf a title."
-    const ids = s.type === "custom" ? (s.source === "picked" ? s.cafe_ids ?? [] : []) : s.cafe_ids ?? []
-    if (ids.length > LIMITS.cafeIdsPerSection) {
+    if (s.type === "custom" && s.source !== "picked" && s.source !== "rule") errors[`${p}.source`] = "Pick cafés or use a rule."
+    const ids: unknown = s.type === "custom" ? (s.source === "picked" ? s.cafe_ids ?? [] : []) : s.cafe_ids ?? []
+    if (!Array.isArray(ids) || ids.some((id) => typeof id !== "string" || !UUID.test(id))) {
+      errors[`${p}.cafe_ids`] = "One of the picked cafés isn’t a valid café."
+    } else if (ids.length > LIMITS.cafeIdsPerSection) {
       errors[`${p}.cafe_ids`] = `At most ${LIMITS.cafeIdsPerSection} cafés.`
     }
     if (s.type === "custom" && s.source === "rule") {
       const r = s.rule
+      if (r && !RULE_SORTS.some((o) => o.value === r.sort)) errors[`${p}.rule.sort`] = "Choose a sort."
       if (!r?.tag) errors[`${p}.rule.tag`] = "Choose a tag."
       else if (knownTags && !knownTags.includes(r.tag)) errors[`${p}.rule.tag`] = "This tag no longer exists."
       if (!r || !Number.isInteger(r.limit) || r.limit < LIMITS.ruleLimitMin || r.limit > LIMITS.ruleLimitMax) {
@@ -323,8 +342,9 @@ export function validateDocument(doc: HomeLayoutDocument, knownTags?: string[]):
   }
   const b = doc.banner
   if (b && b.enabled) {
-    if (!b.title.trim()) errors["banner.title"] = "A banner needs a title."
-    if (b.title.trim().length > LIMITS.bannerTitle) errors["banner.title"] = `Keep it under ${LIMITS.bannerTitle} characters.`
+    const bannerTitle = typeof b.title === "string" ? b.title.trim() : ""
+    if (!bannerTitle) errors["banner.title"] = "A banner needs a title."
+    if (bannerTitle.length > LIMITS.bannerTitle) errors["banner.title"] = `Keep it under ${LIMITS.bannerTitle} characters.`
     if ((b.body ?? "").trim().length > LIMITS.bannerBody) errors["banner.body"] = `Keep it under ${LIMITS.bannerBody} characters.`
     if ((b.cta_label ?? "").trim().length > LIMITS.ctaLabel) errors["banner.cta_label"] = `Keep it under ${LIMITS.ctaLabel} characters.`
     const linkError = validateLink(b.link)
@@ -381,13 +401,23 @@ export function isScheduleActive(s: Schedule | null | undefined, at: Date): bool
   if (s.starts_at && t < Date.parse(s.starts_at)) return false
   if (s.ends_at && t > Date.parse(s.ends_at)) return false
   const p = manilaParts(at)
-  if (s.days && s.days.length > 0 && !s.days.includes(p.isoDay)) return false
+  // As the app (nook-mobile HomeSchedule.isActiveAt): a window that wraps past
+  // midnight belongs to the day it started, so Fri 22:00–02:00 is still on at
+  // 01:00 Saturday and is not on at 01:00 Friday.
+  let day = p.isoDay
   if (s.hours && s.hours.from && s.hours.to) {
     const from = toMinutes(s.hours.from)
     const to = toMinutes(s.hours.to)
-    const inside = from <= to ? p.minutes >= from && p.minutes < to : p.minutes >= from || p.minutes < to
-    if (!inside) return false
+    if (from < to) {
+      if (p.minutes < from || p.minutes >= to) return false
+    } else if (from > to) {
+      const late = p.minutes >= from
+      const early = p.minutes < to
+      if (!late && !early) return false
+      if (early) day = day === 1 ? 7 : day - 1
+    }
   }
+  if (s.days && s.days.length > 0 && !s.days.includes(day)) return false
   return true
 }
 
