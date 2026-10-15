@@ -39,7 +39,8 @@ export function formatWhen(iso: string | null) {
 
 export function describeVersion(v: HomeLayoutVersion) {
   const doc = v.document as { sections?: unknown[]; banner?: { enabled?: boolean } | null } | null
-  if (!doc?.sections || doc.sections.length === 0) return "Built-in Home"
+  // A reset only when there is no banner either (as Restore and the app's isDefault).
+  if (Array.isArray(doc?.sections) && doc.sections.length === 0 && !doc.banner) return "Built-in Home"
   const n = normalizeDocument(v.document)
   const shown = n.sections.filter((s) => s.visible).length
   const custom = n.sections.filter((s) => s.type === "custom").length
