@@ -5,6 +5,7 @@
 
 import * as React from "react"
 import { ImageIcon, TrashIcon, UploadSimpleIcon } from "@phosphor-icons/react"
+import imageCompression from "browser-image-compression"
 import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
@@ -40,16 +41,39 @@ export function BannerEditor({
   const on = !!value?.enabled
 
   const set = (patch: Partial<Banner>) => onChange({ ...(value ?? emptyBanner()), ...patch })
+  // The banner as it is now, for when an upload finishes: edits made while it
+  // ran must not be reverted to the value captured when it started.
+  const latest = React.useRef(value)
+  React.useEffect(() => {
+    latest.current = value
+  }, [value])
 
   async function upload(file: File | undefined) {
     if (!file) return
+    if (!ACCEPT.split(",").includes(file.type)) {
+      toast.error("Only JPG, PNG and WEBP are allowed")
+      return
+    }
     setUploading(true)
-    const fd = new FormData()
-    fd.set("file", file)
-    const res = await uploadHomeBannerImageAction(fd)
-    setUploading(false)
-    if (res.success) set({ image_url: res.url })
-    else toast.error(res.error)
+    try {
+      // Server action bodies are capped at 1MB, so shrink first, as the café
+      // editor does (components/admin/cafe-editor-form.tsx).
+      const small = await imageCompression(file, {
+        maxSizeMB: 0.5,
+        maxWidthOrHeight: 1920,
+        useWebWorker: true,
+        fileType: "image/webp",
+      })
+      const fd = new FormData()
+      fd.set("file", small)
+      const res = await uploadHomeBannerImageAction(fd)
+      if (res.success) onChange({ ...(latest.current ?? emptyBanner()), image_url: res.url })
+      else toast.error(res.error)
+    } catch {
+      toast.error("Upload failed. Try a smaller image.")
+    } finally {
+      setUploading(false)
+    }
   }
 
   return (
