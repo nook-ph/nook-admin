@@ -41,7 +41,7 @@ import {
   type HomeLayoutDocument,
   type HomeSection,
 } from "@/lib/home-layout/document"
-import { shelfPageCafeCount } from "@/lib/home-layout/preview"
+import { buildPreview, shelfPageCafeCount } from "@/lib/home-layout/preview"
 import type { HomeCafe, HomeLayoutVersion } from "@/lib/queries/home-layout"
 import { cn } from "@/lib/utils"
 
@@ -133,8 +133,20 @@ export function HomeLayoutEditor({
     () => (published ? normalizeDocument(published.document) : defaultDocument()),
     [published]
   )
-  const cafeCount = React.useCallback((s: HomeSection) => shelfPageCafeCount(s, cafes), [cafes])
-  const changes = React.useMemo(() => layoutChanges(liveDoc, doc, now ?? EPOCH, cafeCount), [liveDoc, doc, now, cafeCount])
+  const cafeCount = React.useCallback((s: HomeSection) => shelfPageCafeCount(s, cafes, cafesById), [cafes, cafesById])
+  // The shelves phones show right now (as the preview), for Near you's place.
+  const shownIds = React.useMemo(
+    () => (now ? new Set(buildPreview(doc, cafes, now).shelves.map((s) => s.id)) : null),
+    [doc, cafes, now]
+  )
+  const changes = React.useMemo(
+    () => layoutChanges(liveDoc, doc, now ?? EPOCH, { cafeCount, shownIds }),
+    [liveDoc, doc, now, cafeCount, shownIds]
+  )
+  const linkWarning = React.useMemo(
+    () => (doc.banner?.enabled ? shelfLinkProblem(doc, cafeCount) : null),
+    [doc, cafeCount]
+  )
   const savedUnpublished = React.useMemo(
     () => layoutChanges(liveDoc, baseline, EPOCH).changes.length,
     [liveDoc, baseline]
@@ -333,7 +345,7 @@ export function HomeLayoutEditor({
               now={now}
               onPreviewAt={previewAt}
               onUploadingChange={setUploading}
-              linkWarning={doc.banner?.enabled ? shelfLinkProblem(doc, cafeCount) : null}
+              linkWarning={linkWarning}
             />
           </FormSection>
 
@@ -358,6 +370,7 @@ export function HomeLayoutEditor({
               onAddBelow={(index) => addShelfAt(index + 1)}
               onPreviewAt={previewAt}
               pinTop={doc.pin_top !== false}
+              shownIds={shownIds}
             />
           </FormSection>
 

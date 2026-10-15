@@ -164,8 +164,11 @@ function shelfCafes(s: HomeSection, cafes: HomeCafe[], byId: Map<string, HomeCaf
 
 /** How many cafés a shelf's own page (nook://shelf/<id>) would list from
  *  this catalog: the app shows "This shelf isn't on Nook right now" at 0. */
-export function shelfPageCafeCount(s: HomeSection, cafes: HomeCafe[]): number {
-  const byId = new Map(cafes.map((c) => [c.id, c]))
+export function shelfPageCafeCount(
+  s: HomeSection,
+  cafes: HomeCafe[],
+  byId: Map<string, HomeCafe> = new Map(cafes.map((c) => [c.id, c]))
+): number {
   if (s.type === "custom" && s.source === "rule") {
     return s.rule?.tag ? withTags(cafes, [s.rule.tag]).length : 0
   }

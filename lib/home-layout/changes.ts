@@ -6,6 +6,7 @@ import {
   cleanDocument,
   describeSchedule,
   isScheduleActive,
+  LIMITS,
   sectionTitle,
   shelfLinkProblem,
   type HomeLayoutDocument,
@@ -19,9 +20,12 @@ export const NEARBY_WARNING = "Near you is the most-used shelf; moving it down h
 
 /** Where Near you lands among the shelves phones show at `at` (turned-off and
  *  out-of-schedule rows take no place), 1-based; null when it isn't shown.
- *  Without a time only turned-off rows are left out. */
-export function nearbyShownPosition(sections: HomeSection[], at: Date | null): number | null {
-  const shown = sections.filter((s) => s.visible && (!at || isScheduleActive(s.schedule, at)))
+ *  Without a time only turned-off rows are left out. `shownIds` (the shelves
+ *  the preview shows, buildPreview) also leaves out shelves with too few cafés. */
+export function nearbyShownPosition(sections: HomeSection[], at: Date | null, shownIds?: Set<string> | null): number | null {
+  const shown = shownIds
+    ? sections.filter((s) => shownIds.has(s.id))
+    : sections.filter((s) => s.visible && (!at || isScheduleActive(s.schedule, at)))
   const i = shown.findIndex((s) => s.id === "nearby")
   return i < 0 ? null : i + 1
 }
@@ -96,12 +100,16 @@ function fillOf(s: HomeSection) {
 }
 
 /** Warnings that hold for a document on its own, whatever is live. */
-export function layoutWarnings(
-  doc: HomeLayoutDocument,
-  now: Date,
-  /** Cafés a shelf's own page would list, for the banner's shelf link check. */
+export type WarningContext = {
+  /** Cafés a shelf's own page would list (preview.ts shelfPageCafeCount):
+   *  the banner's shelf link check and custom shelves too small to show. */
   cafeCount?: (s: HomeSection) => number
-): string[] {
+  /** Shelves the preview shows at `now`, for Near you's position. */
+  shownIds?: Set<string> | null
+}
+
+export function layoutWarnings(doc: HomeLayoutDocument, now: Date, ctx: WarningContext = {}): string[] {
+  const { cafeCount, shownIds } = ctx
   const warnings: string[] = []
   const b = doc.banner
   if (b && b.enabled !== false && typeof b.title === "string" && b.title.trim()) {
@@ -116,9 +124,15 @@ export function layoutWarnings(
     const st = scheduleStatus(s.schedule, now)
     if (st?.kind === "ended") warnings.push(`${sectionTitle(s)}: its schedule ended ${st.date}, so it won’t show.`)
     if (st?.kind === "upcoming") warnings.push(`${sectionTitle(s)}: starts ${st.date}; hidden until then.`)
+    if (s.type === "custom" && cafeCount) {
+      const n = Math.min(cafeCount(s), s.source === "rule" ? s.rule?.limit ?? LIMITS.ruleLimitDefault : LIMITS.cafeIdsPerSection)
+      if (n < LIMITS.minShelfCafes) {
+        warnings.push(`${sectionTitle(s)}: ${n === 0 ? "no cafés" : `only ${n} café${n === 1 ? "" : "s"}`} right now, so it won’t show on Home (needs ${LIMITS.minShelfCafes}).`)
+      }
+    }
   }
   // With pin_top (the default) the app keeps Near you in the top three itself.
-  const nearby = nearbyShownPosition(doc.sections, now)
+  const nearby = nearbyShownPosition(doc.sections, now, shownIds)
   if (doc.pin_top === false && nearby != null && nearby > NEARBY_MAX_POSITION) warnings.push(`Near you is at #${nearby}. ${NEARBY_WARNING}`)
   return warnings
 }
@@ -129,7 +143,7 @@ export function layoutChanges(
   live: HomeLayoutDocument,
   draft: HomeLayoutDocument,
   now: Date,
-  cafeCount?: (s: HomeSection) => number
+  ctx: WarningContext = {}
 ): LayoutChanges {
   const a = cleanDocument(live)
   const b = cleanDocument(draft)
@@ -195,5 +209,5 @@ export function layoutChanges(
     changes.push(b.respect_purpose ? "Onboarding answers can lead again" : "Onboarding answers no longer move a shelf to the top")
   }
 
-  return { changes, warnings: layoutWarnings(b, now, cafeCount) }
+  return { changes, warnings: layoutWarnings(b, now, ctx) }
 }

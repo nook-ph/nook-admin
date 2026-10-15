@@ -89,7 +89,10 @@ export function SectionList({
   canAdd,
   onPreviewAt,
   pinTop,
+  shownIds,
 }: {
+  /** Shelves the preview shows now, so Near you's place skips ones too small to show. */
+  shownIds?: Set<string> | null
   /** HOME_LAYOUT.md › pin_top: when on, the app keeps Near you in the top three itself. */
   pinTop: boolean
   sections: HomeSection[]
@@ -123,7 +126,7 @@ export function SectionList({
 
   const nearbyIndex = sections.findIndex((s) => s.id === "nearby")
   // Its place on phones: rows that are off or out of schedule take none.
-  const nearbyShown = nearbyShownPosition(sections, now)
+  const nearbyShown = nearbyShownPosition(sections, now, shownIds)
 
   return (
     <>
