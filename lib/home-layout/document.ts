@@ -336,22 +336,28 @@ export function cleanDocument(doc: HomeLayoutDocument): HomeLayoutDocument {
     }
     return out.starts_at || out.ends_at || out.days || out.hours ? out : null
   }
+  // A banner turned off with nothing in it is no banner (null); an empty
+  // schedule is left out, as on sections.
+  const cleanBanner = (b: Banner | null | undefined): Banner | null => {
+    if (!b || typeof b !== "object") return null
+    const out = {
+      id: bannerId(b),
+      enabled: b.enabled !== false,
+      title: str(b.title),
+      body: clean(b.body),
+      image_url: clean(b.image_url),
+      cta_label: clean(b.cta_label),
+      link: clean(b.link),
+    }
+    const sched = cleanSchedule(b.schedule)
+    if (!out.enabled && !out.title && !out.body && !out.image_url && !out.cta_label && !out.link && !sched) return null
+    return sched ? { ...out, schedule: sched } : out
+  }
   return {
     schema: 1,
     respect_purpose: doc.respect_purpose !== false,
     ...(doc.pin_top === false ? { pin_top: false as const } : {}),
-    banner: doc.banner
-      ? {
-          id: bannerId(doc.banner),
-          enabled: doc.banner.enabled !== false,
-          title: str(doc.banner.title),
-          body: clean(doc.banner.body),
-          image_url: clean(doc.banner.image_url),
-          cta_label: clean(doc.banner.cta_label),
-          link: clean(doc.banner.link),
-          schedule: cleanSchedule(doc.banner.schedule),
-        }
-      : null,
+    banner: cleanBanner(doc.banner),
     // Never drop a builtin (nearby above all); an empty list stays empty,
     // which is "Reset to default".
     sections: (doc.sections.length > 0 ? withAllBuiltins(doc.sections) : []).map((s): HomeSection => {
