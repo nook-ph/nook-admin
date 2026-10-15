@@ -125,7 +125,13 @@ export function HomeLayoutEditor({
   const allErrors = React.useMemo(() => validateDocument(doc, tags), [doc, tags])
   const errors = showErrors ? allErrors : {}
   const errorCount = Object.keys(allErrors).length
-  const dirtyCount = React.useMemo(() => countChanges(baseline, doc), [baseline, doc])
+  // Cleaning drops half-set values (an hours window with one end), so an edit
+  // that only left an error still counts as one, keeping Save, Discard and the
+  // leave guard on.
+  const dirtyCount = React.useMemo(
+    () => countChanges(baseline, doc) || (errorCount > 0 && !same(baseline, doc) ? 1 : 0),
+    [baseline, doc, errorCount]
+  )
   useLeaveGuard(dirtyCount > 0)
 
   // Compared with what phones get now: the live layout, or the built-in order.
