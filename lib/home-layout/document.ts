@@ -167,7 +167,14 @@ export function sectionTitle(section: HomeSection) {
 
 export function normalizeDocument(input: unknown): HomeLayoutDocument {
   const doc = (input && typeof input === "object" ? input : {}) as Record<string, unknown>
-  const sections = Array.isArray(doc.sections) ? doc.sections.filter(isSection).map(normalizeSection) : []
+  // As the app: unreadable entries are skipped and a repeated id keeps its first place.
+  const seen = new Set<string>()
+  const sections = Array.isArray(doc.sections)
+    ? doc.sections
+        .filter(isSection)
+        .map(normalizeSection)
+        .filter((s) => !seen.has(s.id) && !!seen.add(s.id))
+    : []
   const listed = sections.length > 0 ? sections : defaultSections()
   return {
     schema: 1,
@@ -181,7 +188,17 @@ export function normalizeDocument(input: unknown): HomeLayoutDocument {
 // Field types are made safe for every reader (editor, preview, change list);
 // values stay as they were so validateDocument can still flag bad ones.
 const text = (v: unknown) => (typeof v === "string" ? v : null)
-const schedule = (v: unknown) => (v && typeof v === "object" && !Array.isArray(v) ? (v as Schedule) : null)
+function schedule(v: unknown): Schedule | null {
+  if (!v || typeof v !== "object" || Array.isArray(v)) return null
+  const s = v as Record<string, unknown>
+  const h = s.hours && typeof s.hours === "object" ? (s.hours as Record<string, unknown>) : null
+  return {
+    starts_at: text(s.starts_at),
+    ends_at: text(s.ends_at),
+    days: Array.isArray(s.days) ? (s.days.filter((d) => typeof d === "number") as number[]) : null,
+    hours: h ? { from: text(h.from) ?? "", to: text(h.to) ?? "" } : null,
+  }
+}
 
 function normalizeBanner(v: unknown): Banner | null {
   if (!v || typeof v !== "object") return null
@@ -200,19 +217,20 @@ function normalizeBanner(v: unknown): Banner | null {
 function normalizeSection(s: HomeSection): HomeSection {
   const raw = s as unknown as Record<string, unknown>
   const ids = Array.isArray(raw.cafe_ids) ? raw.cafe_ids.filter((x): x is string => typeof x === "string") : undefined
-  if (s.type === "builtin") {
+  if (sectionType(raw) === "builtin") {
+    // Only House picks takes cafe_ids (the app and cleanDocument ignore others).
     return {
-      id: s.id,
+      id: s.id as BuiltinId,
       type: "builtin",
       visible: raw.visible !== false,
       title: text(raw.title),
-      ...(ids ? { cafe_ids: ids } : {}),
+      ...(ids && s.id === "featured" ? { cafe_ids: ids } : {}),
       ...(raw.schedule ? { schedule: schedule(raw.schedule) } : {}),
     }
   }
   const rule = raw.rule && typeof raw.rule === "object" ? (raw.rule as Record<string, unknown>) : null
   return {
-    id: s.id,
+    id: s.id as CustomSection["id"],
     type: "custom",
     visible: raw.visible !== false,
     title: text(raw.title) ?? "",
@@ -242,12 +260,19 @@ export function withAllBuiltins(sections: HomeSection[]): HomeSection[] {
   return missing.length > 0 ? [...sections, ...missing] : sections
 }
 
+/** As nook-mobile HomeSection.tryParse: a missing `type` means custom for a
+ *  `custom:` id and builtin otherwise. Normalised entries carry their type. */
 function isSection(s: unknown): s is HomeSection {
   if (!s || typeof s !== "object") return false
   const v = s as { id?: unknown; type?: unknown }
   if (typeof v.id !== "string") return false
-  if (v.type === "builtin") return (BUILTIN_IDS as string[]).includes(v.id)
-  return v.type === "custom" && v.id.startsWith("custom:")
+  const type = sectionType(v)
+  if (type === "builtin") return (BUILTIN_IDS as string[]).includes(v.id)
+  return type === "custom" && v.id.startsWith("custom:")
+}
+
+function sectionType(v: { id?: unknown; type?: unknown }) {
+  return v.type ?? (typeof v.id === "string" && v.id.startsWith("custom:") ? "custom" : "builtin")
 }
 
 /** The document as saved: trims text, drops empty optional fields so the
@@ -257,9 +282,17 @@ export function cleanDocument(doc: HomeLayoutDocument): HomeLayoutDocument {
   // assumes a field has the type the editor gives it.
   const str = (v: unknown) => (typeof v === "string" ? v.trim() : "")
   const clean = (v: unknown) => str(v) || null
-  // Kept as written: the editor writes YYYY-MM-DDTHH:MM:00+08:00, and
-  // validation rejects anything without an explicit offset.
-  const instant = (v: unknown) => str(v) || null
+  // A valid instant is written in Manila time, as the editor writes it
+  // (YYYY-MM-DDTHH:MM:00+08:00), keeping any seconds so the instant is
+  // unchanged. Anything else is kept for validation to flag.
+  const instant = (v: unknown) => {
+    const t = str(v)
+    if (!t) return null
+    const ms = Date.parse(t)
+    if (!ISO_INSTANT.test(t) || Number.isNaN(ms)) return t
+    const wall = new Date(ms + MANILA_OFFSET_MS).toISOString() // ...THH:MM:SS.mmmZ
+    return `${wall.slice(0, ms % 1000 === 0 ? 19 : 23)}+08:00`
+  }
   const cleanSchedule = (s: Schedule | null | undefined): Schedule | null => {
     if (!s || typeof s !== "object") return null
     const out: Schedule = {
@@ -479,6 +512,7 @@ export function isScheduleActive(s: Schedule | null | undefined, at: Date): bool
 const DAY_SHORT = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
 
 function formatManila(iso: string) {
+  if (Number.isNaN(Date.parse(iso))) return iso
   return new Intl.DateTimeFormat("en-PH", {
     timeZone: "Asia/Manila",
     month: "short",

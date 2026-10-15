@@ -17,6 +17,7 @@ export const NEARBY_MAX_POSITION = 3
 export const NEARBY_WARNING = "Near you is the most-used shelf; moving it down hides it for most people."
 
 function shortDate(iso: string) {
+  if (Number.isNaN(Date.parse(iso))) return iso
   return new Intl.DateTimeFormat("en-PH", { timeZone: "Asia/Manila", month: "short", day: "numeric" }).format(new Date(iso))
 }
 
@@ -169,7 +170,7 @@ export function layoutChanges(live: HomeLayoutDocument, draft: HomeLayoutDocumen
   }
 
   if (a.respect_purpose !== b.respect_purpose) {
-    changes.push(b.respect_purpose ? "Onboarding answers can lead again" : "Your order is exact (onboarding answers don’t lead)")
+    changes.push(b.respect_purpose ? "Onboarding answers can lead again" : "Onboarding answers no longer move a shelf to the top")
   }
 
   return { changes, warnings: layoutWarnings(b, now) }

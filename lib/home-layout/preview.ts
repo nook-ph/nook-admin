@@ -63,6 +63,9 @@ function sortCafes(list: HomeCafe[], sort: RuleSort) {
       return out.sort((a, b) => b.created_at.localeCompare(a.created_at))
     case "nearby":
       return out.sort((a, b) => distance(a) - distance(b))
+    default:
+      // An unknown sort in an old or hand-made document: the app uses top_rated.
+      return out.sort((a, b) => b.rating - a.rating || tie(a, b))
   }
 }
 
