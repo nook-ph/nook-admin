@@ -100,8 +100,9 @@ export const DRAFT_CONFLICT =
 /** Writes the draft row (creating it the first time) and returns its new
  *  updated_at. With `expectedUpdatedAt` (the draft's updated_at when the
  *  editor loaded it, null when there was none) the write only happens if the
- *  draft is still that one, so two tabs never silently overwrite each other;
- *  without it (Reset, Publish this version again) the draft is replaced. */
+ *  draft is still that one, so two tabs never silently overwrite each other.
+ *  Every action passes it (Save, Publish, and the draft write after Reset and
+ *  Publish this version again); only the internal 23505 retry goes without. */
 export async function saveHomeLayoutDraft(
   document: HomeLayoutDocument,
   userId: string,
@@ -293,18 +294,23 @@ export const getHomeCafes = unstable_cache(
   { revalidate: 60, tags: ["admin-cafes"] }
 )
 
+/** Active tag names, read now. Publish and save check rules against this,
+ *  so a tag renamed or turned off a minute ago is caught. */
+export async function fetchActiveTagNames(): Promise<string[]> {
+  const supabase = createAdminClient()
+  const { data, error } = await supabase
+    .from("tags")
+    .select("name")
+    .eq("is_active", true)
+    .order("category")
+    .order("sort_order")
+  if (error) throw error
+  return (data ?? []).map((t) => t.name as string)
+}
+
+/** The same, cached, for the editor's tag list. */
 export const getActiveTagNames = unstable_cache(
-  async (): Promise<string[]> => {
-    const supabase = createAdminClient()
-    const { data, error } = await supabase
-      .from("tags")
-      .select("name")
-      .eq("is_active", true)
-      .order("category")
-      .order("sort_order")
-    if (error) throw error
-    return (data ?? []).map((t) => t.name as string)
-  },
+  fetchActiveTagNames,
   ["admin-home-tag-names"],
   { revalidate: 60 * 10, tags: ["admin-tags"] }
 )

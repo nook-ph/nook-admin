@@ -16,7 +16,7 @@ import {
 import {
   assertDraftUnchanged,
   DRAFT_CONFLICT,
-  getActiveTagNames,
+  fetchActiveTagNames,
   getHomeLayoutVersion,
   publishHomeLayout,
   saveHomeLayoutDraft,
@@ -69,7 +69,7 @@ function clip(note: string) {
 async function checked(input: unknown): Promise<HomeLayoutDocument> {
   const read = normalizeDocument(input)
   const doc = cleanDocument(read)
-  const tags = await getActiveTagNames()
+  const tags = await fetchActiveTagNames()
   // Checked as read too: cleaning drops a half-set hours window and folds
   // days into "every day", which would hide a bad value from the check.
   const errors = { ...validateDocument(doc, tags), ...validateDocument(read, tags) }
