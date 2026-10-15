@@ -234,7 +234,7 @@ export function SaveBar({
   return (
     <>
       {/* Reserves room so the bar never covers the last section. */}
-      <div aria-hidden className="h-24 shrink-0" />
+      <div aria-hidden className="h-36 shrink-0 sm:h-24" />
       <div
         role="region"
         aria-label="Save"
@@ -244,7 +244,8 @@ export function SaveBar({
         )}
       >
         <div className="mx-auto flex w-full max-w-6xl flex-wrap items-center gap-2 px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:px-6">
-          <p aria-live="polite" className="flex min-w-0 flex-1 items-center gap-2 text-sm">
+          {/* On phones the status takes its own line, so three buttons never squeeze it. */}
+          <p aria-live="polite" className="flex min-w-0 flex-1 items-center gap-2 text-sm max-sm:basis-full">
             {saving ? (
               <span className="text-muted-foreground">Saving…</span>
             ) : errorCount > 0 ? (
