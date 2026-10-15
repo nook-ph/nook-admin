@@ -27,7 +27,10 @@ export function BannerEditor({
   errors,
   now,
   onPreviewAt,
+  onUploadingChange,
 }: {
+  /** Save and Publish wait while an image uploads, or they'd go out without it. */
+  onUploadingChange?: (uploading: boolean) => void
   value: Banner | null
   onChange: (next: Banner | null) => void
   errors: LayoutErrors
@@ -35,7 +38,11 @@ export function BannerEditor({
   now: Date | null
   onPreviewAt: (iso: string) => void
 }) {
-  const [uploading, setUploading] = React.useState(false)
+  const [uploading, setUploadingState] = React.useState(false)
+  const setUploading = (v: boolean) => {
+    setUploadingState(v)
+    onUploadingChange?.(v)
+  }
   const [dragOver, setDragOver] = React.useState(false)
   const fileRef = React.useRef<HTMLInputElement>(null)
   const on = !!value?.enabled

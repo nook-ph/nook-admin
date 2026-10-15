@@ -29,7 +29,7 @@ type Result =
       /** Published, but a follow-up step failed; shown to the admin. */
       warning?: string
     }
-  | { success: false; error: string }
+  | { success: false; error: string; draftUpdatedAt?: string }
 
 /** The superadmin's id. Always a real check, fixture mode included: a server
  *  action can be POSTed to any path, so middleware never guards it
@@ -84,18 +84,21 @@ export async function publishHomeLayoutAction(
   note: string | null,
   expectedUpdatedAt: string | null
 ): Promise<Result> {
+  let draftUpdatedAt: string | undefined
   try {
     const userId = await actor()
     if (note != null && typeof note !== "string") throw new Error("The note must be text.")
     if (note && note.trim().length > LIMITS.note) throw new Error(`Keep the note under ${LIMITS.note} characters.`)
     const doc = await checked(input)
     // Refused before anything goes live if another tab saved a newer draft.
-    const draftUpdatedAt = await saveHomeLayoutDraft(doc, userId, expectedUpdatedAt ?? null)
+    draftUpdatedAt = await saveHomeLayoutDraft(doc, userId, expectedUpdatedAt ?? null)
     const version = await publishHomeLayout(doc, note, userId)
     revalidatePath("/admin/home")
     return { success: true, version, draftUpdatedAt }
   } catch (error) {
-    return { success: false, error: message(error, "Couldn’t publish the layout") }
+    // The draft may have been saved before the publish failed: hand back its
+    // stamp so the retry isn't taken for someone else's edit.
+    return { success: false, error: message(error, "Couldn’t publish the layout"), draftUpdatedAt }
   }
 }
 

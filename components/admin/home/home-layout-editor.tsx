@@ -7,7 +7,6 @@
 // line everywhere: "Same as live" / "N unpublished changes" / "Nothing live yet".
 
 import * as React from "react"
-import { useRouter } from "next/navigation"
 import { DatabaseIcon } from "@phosphor-icons/react"
 import { toast } from "sonner"
 
@@ -87,12 +86,12 @@ export function HomeLayoutEditor({
   /** Dev-only fixture store (lib/home-layout/dev-fixture.ts): nothing is saved. */
   fixture: boolean
 }) {
-  const router = useRouter()
   const [baseline, setBaseline] = React.useState(initialDocument)
   const [doc, setDoc] = React.useState(initialDocument)
   const [openId, setOpenId] = React.useState<string | null>(null)
   const [showErrors, setShowErrors] = React.useState(false)
   const [saving, setSaving] = React.useState(false)
+  const [uploading, setUploading] = React.useState(false)
   const [busyId, setBusyId] = React.useState<string | null>(null)
   const [publishOpen, setPublishOpen] = React.useState(false)
   const [note, setNote] = React.useState("")
@@ -105,11 +104,14 @@ export function HomeLayoutEditor({
   // saved meanwhile in another tab is never overwritten silently.
   const [draftStamp, setDraftStamp] = React.useState(draftUpdatedAt)
 
-  // The server sends a new initialDocument after each save/publish refresh.
-  // The form is inert while an action runs, so nothing typed can be lost here.
-  const [lastInitial, setLastInitial] = React.useState(initialDocument)
-  if (lastInitial !== initialDocument) {
-    setLastInitial(initialDocument)
+  // Each action's revalidatePath sends the page again with what was saved.
+  // Load it only when the stored draft or the live version really changed
+  // (not on every new props object), and the form is inert while an action
+  // runs, so nothing typed can be dropped here.
+  const serverKey = `${draftUpdatedAt ?? ""}|${published?.id ?? ""}`
+  const [lastKey, setLastKey] = React.useState(serverKey)
+  if (lastKey !== serverKey) {
+    setLastKey(serverKey)
     setBaseline(initialDocument)
     setDoc(initialDocument)
     setDraftStamp(draftUpdatedAt)
@@ -119,7 +121,7 @@ export function HomeLayoutEditor({
   const allErrors = React.useMemo(() => validateDocument(doc, tags), [doc, tags])
   const errors = showErrors ? allErrors : {}
   const errorCount = Object.keys(allErrors).length
-  const dirtyCount = countChanges(baseline, doc)
+  const dirtyCount = React.useMemo(() => countChanges(baseline, doc), [baseline, doc])
   useLeaveGuard(dirtyCount > 0)
 
   // Compared with what phones get now: the live layout, or the built-in order.
@@ -207,11 +209,12 @@ export function HomeLayoutEditor({
       setSaving(false)
       setBusyId(null)
     }
+    // A failed publish may still have saved the draft; keep its new stamp so
+    // a retry isn't refused as someone else's edit.
+    if (res.draftUpdatedAt) setDraftStamp(res.draftUpdatedAt)
     if (res.success) {
-      if (res.draftUpdatedAt) setDraftStamp(res.draftUpdatedAt)
       if (res.warning) toast.warning(res.warning)
       else toast.success(okMessage)
-      router.refresh()
     } else {
       toast.error(res.error ?? "Something went wrong")
     }
@@ -322,6 +325,7 @@ export function HomeLayoutEditor({
               errors={errors}
               now={now}
               onPreviewAt={previewAt}
+              onUploadingChange={setUploading}
             />
           </FormSection>
 
@@ -345,6 +349,7 @@ export function HomeLayoutEditor({
               canAdd={canAdd}
               onAddBelow={(index) => addShelfAt(index + 1)}
               onPreviewAt={previewAt}
+              pinTop={doc.pin_top !== false}
             />
           </FormSection>
 
@@ -355,7 +360,7 @@ export function HomeLayoutEditor({
                   Let onboarding answers lead
                 </label>
                 <p className="text-xs text-muted-foreground">
-                  On: the shelf matching what a person said they come for can move to the top, as today. Off: your order is exact.
+                  On: the shelf matching what a person said they come for can move to the top, as today. Off: it stays where you put it.
                 </p>
               </div>
               <HomeSwitch
@@ -422,13 +427,13 @@ export function HomeLayoutEditor({
         }}
         savedLabel={savedLabel}
       >
-        <Button variant="outline" onClick={saveDraft} disabled={saving || missingTable || dirtyCount === 0}>
+        <Button variant="outline" onClick={saveDraft} disabled={saving || uploading || missingTable || dirtyCount === 0}>
           {busyId === "save" && <Spinner />}
           Save draft
         </Button>
         <Button
           onClick={() => (errorCount > 0 ? firstError() : setPublishOpen(true))}
-          disabled={saving || missingTable || nothingToPublish}
+          disabled={saving || uploading || missingTable || nothingToPublish}
         >
           {nothingToPublish ? "Nothing new to publish" : "Publish"}
         </Button>
