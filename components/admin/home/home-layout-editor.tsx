@@ -192,6 +192,8 @@ export function HomeLayoutEditor({
     if (m) {
       setOpenId(m[1])
       requestAnimationFrame(() => document.getElementById(`row-${m[1]}`)?.scrollIntoView({ block: "start", behavior: "smooth" }))
+    } else if (key === "sections") {
+      document.getElementById("shelves")?.scrollIntoView({ block: "start", behavior: "smooth" })
     } else if (key.startsWith("banner")) {
       document.getElementById("banner")?.scrollIntoView({ block: "start", behavior: "smooth" })
     }
