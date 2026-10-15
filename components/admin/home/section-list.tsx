@@ -88,7 +88,10 @@ export function SectionList({
   onAddBelow,
   canAdd,
   onPreviewAt,
+  pinTop,
 }: {
+  /** HOME_LAYOUT.md › pin_top: when on, the app keeps Near you in the top three itself. */
+  pinTop: boolean
   sections: HomeSection[]
   onChange: (next: HomeSection[]) => void
   errors: LayoutErrors
@@ -258,7 +261,7 @@ export function SectionList({
         })}
       </ol>
 
-      {nearbyIndex >= NEARBY_MAX_POSITION && (
+      {!pinTop && nearbyIndex >= NEARBY_MAX_POSITION && (
         <div className={cn("flex flex-wrap items-center gap-x-3 gap-y-2 rounded-lg px-3 py-2.5 text-[13px]", TONES.warning)} role="status">
           <span className="flex min-w-0 flex-1 items-start gap-1.5">
             <WarningCircleIcon className="mt-0.5 size-4 shrink-0" aria-hidden />
@@ -327,8 +330,16 @@ function SectionEditor({
 }) {
   const p = `sections.${s.id}`
   const def = s.type === "builtin" ? builtinInfo(s.id)?.title : undefined
+  // Errors with no field of their own (a shelf listed twice, a source the
+  // editor doesn't offer), as an old or hand-made document can have.
+  const rowErrors = [errors[p], errors[`${p}.source`]].filter(Boolean)
   return (
     <>
+      {rowErrors.map((e) => (
+        <p key={e} className="text-xs text-destructive">
+          {e}
+        </p>
+      ))}
       <Field
         label="Title"
         htmlFor={`${s.id}-title`}
@@ -480,7 +491,7 @@ function CustomSource({
                 </SelectContent>
               </Select>
             </Field>
-            <Field label="Order" htmlFor={`${s.id}-sort`}>
+            <Field label="Order" htmlFor={`${s.id}-sort`} error={errors[`${p}.rule.sort`]}>
               <Select value={rule.sort} onValueChange={(sort) => setRule({ sort: sort as RuleSort })}>
                 <SelectTrigger id={`${s.id}-sort`} className="w-full bg-background">
                   <SelectValue />

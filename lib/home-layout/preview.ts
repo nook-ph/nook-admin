@@ -107,13 +107,35 @@ function shelfCafes(s: HomeSection, cafes: HomeCafe[], byId: Map<string, HomeCaf
   }
 }
 
+/** HOME_LAYOUT.md › pin_top, as nook-mobile pinPersonalShelves: with pin_top
+ *  on, Your places and Near you are pulled into the first three of the shown
+ *  shelves (the admin's first other shelves fill the rest of the top, in
+ *  order). Turned-off and out-of-schedule rows keep their place in the list.
+ *  The preview always has a position (Cebu City), so Near you always counts. */
+export const PINNED_SLOTS = 3
+
+export function pinnedOrder(doc: HomeLayoutDocument, at: Date): HomeSection[] {
+  if (doc.pin_top === false) return doc.sections
+  const shown = (s: HomeSection) => s.visible && isScheduleActive(s.schedule, at)
+  const slots = doc.sections.filter(shown)
+  const isPin = (s: HomeSection) => s.id === "your_places" || s.id === "nearby"
+  const pins = slots.filter(isPin)
+  if (pins.length === 0 || pins.every((p) => slots.indexOf(p) < PINNED_SLOTS)) return doc.sections
+  const lead = PINNED_SLOTS - pins.length
+  const others = slots.filter((s) => !isPin(s))
+  const top = new Set([...pins, ...others.slice(0, lead)])
+  const order = [...slots.filter((s) => top.has(s)), ...others.slice(lead)]
+  let next = 0
+  return doc.sections.map((s) => (shown(s) ? order[next++] : s))
+}
+
 export function buildPreview(doc: HomeLayoutDocument, cafes: HomeCafe[], at: Date): HomePreview {
   const byId = new Map(cafes.map((c) => [c.id, c]))
   const shelves: PreviewShelf[] = []
   const hidden: PreviewHidden[] = []
   const items: HomePreview["items"] = []
 
-  for (const s of doc.sections) {
+  for (const s of pinnedOrder(doc, at)) {
     const title = sectionTitle(s)
     if (!s.visible) {
       hidden.push({ id: s.id, title, reason: "Turned off" })
@@ -145,10 +167,12 @@ export function buildPreview(doc: HomeLayoutDocument, cafes: HomeCafe[], at: Dat
   const b = doc.banner
   let banner: Banner | null = null
   let bannerHiddenReason: string | null = null
-  if (b && b.enabled && b.title.trim()) {
+  // As the app: shown unless enabled is false, and only with a title.
+  const on = !!b && b.enabled !== false
+  if (b && on && typeof b.title === "string" && b.title.trim()) {
     if (isScheduleActive(b.schedule, at)) banner = b
     else bannerHiddenReason = "Outside its schedule"
-  } else if (b && !b.enabled) {
+  } else if (b && !on) {
     bannerHiddenReason = "Turned off"
   }
 

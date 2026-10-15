@@ -88,7 +88,7 @@ function fillOf(s: HomeSection) {
 export function layoutWarnings(doc: HomeLayoutDocument, now: Date): string[] {
   const warnings: string[] = []
   const b = doc.banner
-  if (b && b.enabled && b.title.trim()) {
+  if (b && b.enabled !== false && typeof b.title === "string" && b.title.trim()) {
     const st = scheduleStatus(b.schedule, now)
     if (st?.kind === "ended") warnings.push(`Banner: its schedule ended ${st.date}, so it won’t show.`)
     if (st?.kind === "upcoming") warnings.push(`Banner: starts ${st.date}; hidden until then.`)
@@ -99,8 +99,9 @@ export function layoutWarnings(doc: HomeLayoutDocument, now: Date): string[] {
     if (st?.kind === "ended") warnings.push(`${sectionTitle(s)}: its schedule ended ${st.date}, so it won’t show.`)
     if (st?.kind === "upcoming") warnings.push(`${sectionTitle(s)}: starts ${st.date}; hidden until then.`)
   }
+  // With pin_top (the default) the app keeps Near you in the top three itself.
   const nearby = doc.sections.findIndex((s) => s.id === "nearby")
-  if (nearby >= NEARBY_MAX_POSITION) warnings.push(`Near you is at #${nearby + 1}. ${NEARBY_WARNING}`)
+  if (doc.pin_top === false && nearby >= NEARBY_MAX_POSITION) warnings.push(`Near you is at #${nearby + 1}. ${NEARBY_WARNING}`)
   return warnings
 }
 
@@ -161,6 +162,10 @@ export function layoutChanges(live: HomeLayoutDocument, draft: HomeLayoutDocumen
       const d = describeSchedule(s2)
       changes.push(d ? `Banner schedule: ${d}` : "Removed the banner schedule")
     }
+  }
+
+  if ((a.pin_top ?? true) !== (b.pin_top ?? true)) {
+    changes.push(b.pin_top === false ? "Your places and Near you follow your order exactly" : "Your places and Near you stay in the top three")
   }
 
   if (a.respect_purpose !== b.respect_purpose) {

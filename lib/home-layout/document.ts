@@ -106,6 +106,10 @@ export type Banner = {
 export type HomeLayoutDocument = {
   schema: 1
   respect_purpose: boolean
+  /** HOME_LAYOUT.md › pin_top: absent = true (Your places and Near you stay in
+   *  the top three). The editor has no control for it; it keeps a `false`
+   *  it reads so a restore publishes the version as it was. */
+  pin_top?: false
   banner: Banner | null
   sections: HomeSection[]
 }
@@ -162,14 +166,68 @@ export function sectionTitle(section: HomeSection) {
 // means "the app's default", so it opens as the default order.
 
 export function normalizeDocument(input: unknown): HomeLayoutDocument {
-  const doc = (input && typeof input === "object" ? input : {}) as Partial<HomeLayoutDocument>
-  const sections = Array.isArray(doc.sections) ? doc.sections.filter(isSection) : []
+  const doc = (input && typeof input === "object" ? input : {}) as Record<string, unknown>
+  const sections = Array.isArray(doc.sections) ? doc.sections.filter(isSection).map(normalizeSection) : []
   const listed = sections.length > 0 ? sections : defaultSections()
   return {
     schema: 1,
     respect_purpose: doc.respect_purpose !== false,
-    banner: doc.banner && typeof doc.banner === "object" ? (doc.banner as Banner) : null,
+    ...(doc.pin_top === false ? { pin_top: false as const } : {}),
+    banner: normalizeBanner(doc.banner),
     sections: withAllBuiltins(listed),
+  }
+}
+
+// Field types are made safe for every reader (editor, preview, change list);
+// values stay as they were so validateDocument can still flag bad ones.
+const text = (v: unknown) => (typeof v === "string" ? v : null)
+const schedule = (v: unknown) => (v && typeof v === "object" && !Array.isArray(v) ? (v as Schedule) : null)
+
+function normalizeBanner(v: unknown): Banner | null {
+  if (!v || typeof v !== "object") return null
+  const b = v as Record<string, unknown>
+  return {
+    enabled: b.enabled !== false,
+    title: text(b.title) ?? "",
+    body: text(b.body),
+    image_url: text(b.image_url),
+    cta_label: text(b.cta_label),
+    link: text(b.link),
+    schedule: schedule(b.schedule),
+  }
+}
+
+function normalizeSection(s: HomeSection): HomeSection {
+  const raw = s as unknown as Record<string, unknown>
+  const ids = Array.isArray(raw.cafe_ids) ? raw.cafe_ids.filter((x): x is string => typeof x === "string") : undefined
+  if (s.type === "builtin") {
+    return {
+      id: s.id,
+      type: "builtin",
+      visible: raw.visible !== false,
+      title: text(raw.title),
+      ...(ids ? { cafe_ids: ids } : {}),
+      ...(raw.schedule ? { schedule: schedule(raw.schedule) } : {}),
+    }
+  }
+  const rule = raw.rule && typeof raw.rule === "object" ? (raw.rule as Record<string, unknown>) : null
+  return {
+    id: s.id,
+    type: "custom",
+    visible: raw.visible !== false,
+    title: text(raw.title) ?? "",
+    source: raw.source as CustomSection["source"],
+    ...(ids ? { cafe_ids: ids } : {}),
+    ...(rule
+      ? {
+          rule: {
+            tag: text(rule.tag),
+            sort: rule.sort as RuleSort,
+            limit: typeof rule.limit === "number" ? rule.limit : LIMITS.ruleLimitDefault,
+          },
+        }
+      : {}),
+    ...(raw.schedule ? { schedule: schedule(raw.schedule) } : {}),
   }
 }
 
@@ -199,13 +257,9 @@ export function cleanDocument(doc: HomeLayoutDocument): HomeLayoutDocument {
   // assumes a field has the type the editor gives it.
   const str = (v: unknown) => (typeof v === "string" ? v.trim() : "")
   const clean = (v: unknown) => str(v) || null
-  // A valid ISO instant becomes the form the editor writes
-  // (YYYY-MM-DDTHH:MM:00+08:00); anything else is kept for validation to flag.
-  const instant = (v: unknown) => {
-    const t = str(v)
-    if (!t) return null
-    return ISO_INSTANT.test(t) && !Number.isNaN(Date.parse(t)) ? manilaLocalToIso(isoToManilaLocal(t)) : t
-  }
+  // Kept as written: the editor writes YYYY-MM-DDTHH:MM:00+08:00, and
+  // validation rejects anything without an explicit offset.
+  const instant = (v: unknown) => str(v) || null
   const cleanSchedule = (s: Schedule | null | undefined): Schedule | null => {
     if (!s || typeof s !== "object") return null
     const out: Schedule = {
@@ -218,7 +272,8 @@ export function cleanDocument(doc: HomeLayoutDocument): HomeLayoutDocument {
   }
   return {
     schema: 1,
-    respect_purpose: doc.respect_purpose,
+    respect_purpose: doc.respect_purpose !== false,
+    ...(doc.pin_top === false ? { pin_top: false as const } : {}),
     banner: doc.banner
       ? {
           enabled: doc.banner.enabled !== false,
