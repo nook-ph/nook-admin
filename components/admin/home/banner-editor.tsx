@@ -10,10 +10,10 @@ import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Spinner } from "@/components/ui/spinner"
-import { Switch } from "@/components/ui/switch"
 import { Textarea } from "@/components/ui/textarea"
 import { Field } from "@/components/admin/form-kit"
-import { ScheduleFields } from "@/components/admin/home/schedule-fields"
+import { HomeSwitch } from "@/components/admin/home/home-switch"
+import { ScheduleChip, ScheduleFields } from "@/components/admin/home/schedule-fields"
 import { uploadHomeBannerImageAction } from "@/app/admin/home/actions"
 import { emptyBanner, type Banner, type LayoutErrors } from "@/lib/home-layout/document"
 import { cn } from "@/lib/utils"
@@ -24,10 +24,15 @@ export function BannerEditor({
   value,
   onChange,
   errors,
+  now,
+  onPreviewAt,
 }: {
   value: Banner | null
   onChange: (next: Banner | null) => void
   errors: LayoutErrors
+  /** Client clock for the schedule chip; null before mount. */
+  now: Date | null
+  onPreviewAt: (iso: string) => void
 }) {
   const [uploading, setUploading] = React.useState(false)
   const [dragOver, setDragOver] = React.useState(false)
@@ -51,14 +56,17 @@ export function BannerEditor({
     <div className="flex flex-col gap-4">
       <div className="flex items-center justify-between gap-4 rounded-lg bg-muted px-4 py-3">
         <div className="min-w-0">
-          <label htmlFor="banner-on" className="text-sm font-medium">
-            Show a banner
-          </label>
+          <span className="flex flex-wrap items-center gap-2">
+            <label htmlFor="banner-on" className="text-sm font-medium">
+              Show a banner
+            </label>
+            {on && <ScheduleChip schedule={value?.schedule} now={now} />}
+          </span>
           <p className="text-xs text-muted-foreground">
             Above every shelf. People can dismiss it; a new title shows it again.
           </p>
         </div>
-        <Switch
+        <HomeSwitch
           id="banner-on"
           checked={on}
           onCheckedChange={(checked) => (value ? set({ enabled: checked }) : onChange({ ...emptyBanner(), enabled: checked }))}
@@ -133,7 +141,7 @@ export function BannerEditor({
             <Input
               id="banner-headline"
               value={value.title}
-              placeholder="Cebu Coffee Crawl this Saturday"
+              placeholder="e.g. Cebu Coffee Crawl this Saturday"
               onChange={(e) => set({ title: e.target.value })}
               aria-invalid={!!errors["banner.title"]}
             />
@@ -143,7 +151,7 @@ export function BannerEditor({
               id="banner-body"
               rows={2}
               value={value.body ?? ""}
-              placeholder="Five cafés, one stamp card."
+              placeholder="e.g. Five cafés, one stamp card."
               onChange={(e) => set({ body: e.target.value })}
               aria-invalid={!!errors["banner.body"]}
             />
@@ -153,7 +161,7 @@ export function BannerEditor({
               <Input
                 id="banner-cta"
                 value={value.cta_label ?? ""}
-                placeholder="See the crawl"
+                placeholder="e.g. See the crawl"
                 onChange={(e) => set({ cta_label: e.target.value })}
                 aria-invalid={!!errors["banner.cta_label"]}
               />
@@ -171,7 +179,7 @@ export function BannerEditor({
                 inputMode="url"
                 autoComplete="off"
                 value={value.link ?? ""}
-                placeholder="nook://crawls/…"
+                placeholder="e.g. nook://crawls/…"
                 onChange={(e) => set({ link: e.target.value })}
                 aria-invalid={!!errors["banner.link"]}
               />
@@ -184,6 +192,7 @@ export function BannerEditor({
             errors={errors}
             errorPrefix="banner.schedule"
             what="banner"
+            onPreviewAt={onPreviewAt}
           />
         </fieldset>
       )}

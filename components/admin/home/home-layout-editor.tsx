@@ -1,9 +1,10 @@
 "use client"
 
 // /admin/home: the draft Home layout (nook-supabase docs/HOME_LAYOUT.md).
-// Workbench form page: shelves, banner and options in the main column, the
-// phone preview in the sticky rail, versions at the end, and the save bar
-// with Save draft and Publish pinned to the bottom.
+// Workbench form page: banner, shelves and options in the main column (in
+// phone order), the phone preview in the sticky rail, versions at the end,
+// and the save bar with Save draft and Publish pinned to the bottom. One state
+// line everywhere: "Same as live" / "N unpublished changes" / "Nothing live yet".
 
 import * as React from "react"
 import { useRouter } from "next/navigation"
@@ -11,31 +12,27 @@ import { DatabaseIcon } from "@phosphor-icons/react"
 import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog"
 import { Spinner } from "@/components/ui/spinner"
-import { Switch } from "@/components/ui/switch"
-import { Textarea } from "@/components/ui/textarea"
-import { Field, FormSection, SaveBar, useLeaveGuard } from "@/components/admin/form-kit"
+import { FormSection, SaveBar, useLeaveGuard } from "@/components/admin/form-kit"
 import { PageHeader, StatusChip } from "@/components/admin/table-kit"
 import { BannerEditor } from "@/components/admin/home/banner-editor"
-import { PhonePreview } from "@/components/admin/home/phone-preview"
+import { HomeSwitch } from "@/components/admin/home/home-switch"
+import { PhonePreview, type PreviewTime } from "@/components/admin/home/phone-preview"
+import { PublishDialog } from "@/components/admin/home/publish-dialog"
 import { AddShelfButton, SectionList } from "@/components/admin/home/section-list"
-import { formatWhen, Versions } from "@/components/admin/home/versions"
+import { useNow } from "@/components/admin/home/use-now"
+import { formatWhen, RestoreDialog, Versions } from "@/components/admin/home/versions"
 import {
   publishHomeLayoutAction,
   republishHomeVersionAction,
   resetHomeLayoutAction,
   saveHomeDraftAction,
 } from "@/app/admin/home/actions"
+import { layoutChanges } from "@/lib/home-layout/changes"
 import {
   cleanDocument,
+  defaultDocument,
+  isoToManilaLocal,
   LIMITS,
   newCustomSection,
   normalizeDocument,
@@ -43,6 +40,8 @@ import {
   type HomeLayoutDocument,
 } from "@/lib/home-layout/document"
 import type { HomeCafe, HomeLayoutVersion } from "@/lib/queries/home-layout"
+
+const EPOCH = new Date(0)
 
 function same(a: unknown, b: unknown) {
   return JSON.stringify(a) === JSON.stringify(b)
@@ -73,6 +72,7 @@ export function HomeLayoutEditor({
   history,
   cafes,
   tags,
+  fixture,
 }: {
   missingTable: boolean
   hasDraft: boolean
@@ -82,6 +82,8 @@ export function HomeLayoutEditor({
   history: HomeLayoutVersion[]
   cafes: HomeCafe[]
   tags: string[]
+  /** Dev-only fixture store (lib/home-layout/dev-fixture.ts): nothing is saved. */
+  fixture: boolean
 }) {
   const router = useRouter()
   const [baseline, setBaseline] = React.useState(initialDocument)
@@ -92,6 +94,10 @@ export function HomeLayoutEditor({
   const [busyId, setBusyId] = React.useState<string | null>(null)
   const [publishOpen, setPublishOpen] = React.useState(false)
   const [note, setNote] = React.useState("")
+  const [previewTime, setPreviewTime] = React.useState<PreviewTime>({ mode: "now", picked: "" })
+  const [previewVersion, setPreviewVersion] = React.useState<HomeLayoutVersion | null>(null)
+  const [restoreVersion, setRestoreVersion] = React.useState<HomeLayoutVersion | null>(null)
+  const now = useNow()
 
   // The server sends a new initialDocument after each save/publish refresh.
   const [lastInitial, setLastInitial] = React.useState(initialDocument)
@@ -108,9 +114,60 @@ export function HomeLayoutEditor({
   const dirtyCount = countChanges(baseline, doc)
   useLeaveGuard(dirtyCount > 0)
 
-  const liveDoc = published ? normalizeDocument(published.document) : null
-  const draftIsLive = !!liveDoc && same(cleanDocument(liveDoc), cleanDocument(doc))
+  // Compared with what phones get now: the live layout, or the built-in order.
+  const liveDoc = React.useMemo(
+    () => (published ? normalizeDocument(published.document) : defaultDocument()),
+    [published]
+  )
+  const changes = React.useMemo(() => layoutChanges(liveDoc, doc, now ?? EPOCH), [liveDoc, doc, now])
+  const savedUnpublished = React.useMemo(
+    () => layoutChanges(liveDoc, baseline, EPOCH).changes.length,
+    [liveDoc, baseline]
+  )
+  const unpublished = changes.changes.length
+  const nothingToPublish = !!published && unpublished === 0
   const customCount = doc.sections.filter((s) => s.type === "custom").length
+  const canAdd = doc.sections.length < LIMITS.sections && customCount < LIMITS.customShelves
+
+  function addShelfAt(index: number) {
+    const s = newCustomSection()
+    setDoc((d) => {
+      const sections = [...d.sections]
+      sections.splice(index, 0, s)
+      return { ...d, sections }
+    })
+    setOpenId(s.id)
+    requestAnimationFrame(() => document.getElementById(`${s.id}-title`)?.focus())
+  }
+
+  function showPreview() {
+    // Below lg the preview sits under the form; bring it into view.
+    if (window.matchMedia("(max-width: 1023px)").matches) {
+      document.getElementById("preview")?.scrollIntoView({ block: "start", behavior: "smooth" })
+    }
+  }
+
+  function previewAt(iso: string) {
+    setPreviewVersion(null)
+    setPreviewTime({ mode: "pick", picked: isoToManilaLocal(iso) })
+    showPreview()
+  }
+
+  function backToNow() {
+    setPreviewTime((t) => ({ ...t, mode: "now" }))
+    setPreviewVersion(null)
+  }
+
+  function selectFromPreview(target: string) {
+    if (target === "banner") {
+      document.getElementById("banner")?.scrollIntoView({ block: "start", behavior: "smooth" })
+      return
+    }
+    setOpenId(target)
+    requestAnimationFrame(() =>
+      document.getElementById(`row-${target}`)?.scrollIntoView({ block: "start", behavior: "smooth" })
+    )
+  }
 
   function firstError() {
     const key = Object.keys(allErrors)[0]
@@ -154,18 +211,45 @@ export function HomeLayoutEditor({
     if (ok) {
       setPublishOpen(false)
       setNote("")
+      backToNow()
     }
   }
 
-  const status = missingTable ? (
-    <StatusChip tone="neutral">Not set up</StatusChip>
-  ) : !published ? (
-    <StatusChip tone="neutral">Built-in Home</StatusChip>
-  ) : draftIsLive && dirtyCount === 0 ? (
-    <StatusChip tone="success">Live</StatusChip>
-  ) : (
-    <StatusChip tone="warning">Draft differs from live</StatusChip>
+  async function republish(v: HomeLayoutVersion) {
+    setRestoreVersion(null)
+    const ok = await run(v.id, () => republishHomeVersionAction(v.id), "That version is live again")
+    if (ok) backToNow()
+  }
+
+  function openAsDraft(v: HomeLayoutVersion) {
+    setRestoreVersion(null)
+    setPreviewVersion(null)
+    setDoc(normalizeDocument(v.document))
+    setShowErrors(false)
+    toast.success("Opened as the draft. Nothing is live until you publish.")
+  }
+
+  const stateLine = missingTable
+    ? "Not set up"
+    : !published
+      ? "Nothing live yet"
+      : unpublished === 0
+        ? "Same as live"
+        : `${unpublished} unpublished ${unpublished === 1 ? "change" : "changes"}`
+
+  const status = (
+    <StatusChip tone={missingTable || !published ? "neutral" : unpublished === 0 ? "success" : "warning"}>
+      {stateLine}
+    </StatusChip>
   )
+
+  const savedLabel = missingTable
+    ? "Nothing is saved until the table exists"
+    : !published
+      ? "Nothing live yet · the app shows its built-in Home"
+      : unpublished === 0
+        ? "Same as live"
+        : `Draft saved · ${unpublished} unpublished ${unpublished === 1 ? "change" : "changes"}`
 
   const summary = missingTable
     ? "The home_layouts table isn’t in the database yet."
@@ -190,7 +274,10 @@ export function HomeLayoutEditor({
             </a>
           }
         />
-        <div>{status}</div>
+        <div className="flex flex-wrap items-center gap-2">
+          {status}
+          {fixture && <StatusChip tone="info">Fixture data · nothing is saved</StatusChip>}
+        </div>
       </div>
 
       {missingTable && (
@@ -205,21 +292,21 @@ export function HomeLayoutEditor({
 
       <div className="grid grid-cols-1 items-start gap-8 lg:grid-cols-[minmax(0,1fr)_320px] lg:gap-10">
         <div className="flex min-w-0 flex-col">
+          <FormSection id="banner" title="Banner" description="One banner at the top of Home, above every shelf. Optional.">
+            <BannerEditor
+              value={doc.banner}
+              onChange={(banner) => setDoc((d) => ({ ...d, banner }))}
+              errors={errors}
+              now={now}
+              onPreviewAt={previewAt}
+            />
+          </FormSection>
+
           <FormSection
             id="shelves"
             title="Shelves"
             description={`Top to bottom, as on the phone. Drag a row or open it to move it. ${doc.sections.length} of ${LIMITS.sections} · ${customCount} of ${LIMITS.customShelves} custom.`}
-            action={
-              <AddShelfButton
-                disabled={doc.sections.length >= LIMITS.sections || customCount >= LIMITS.customShelves}
-                onAdd={() => {
-                  const s = newCustomSection()
-                  setDoc((d) => ({ ...d, sections: [...d.sections, s] }))
-                  setOpenId(s.id)
-                  requestAnimationFrame(() => document.getElementById(`${s.id}-title`)?.focus())
-                }}
-              />
-            }
+            action={<AddShelfButton disabled={!canAdd} onAdd={() => addShelfAt(doc.sections.length)} />}
           >
             {errors["sections"] && <p className="text-xs text-destructive">{errors["sections"]}</p>}
             <SectionList
@@ -231,11 +318,11 @@ export function HomeLayoutEditor({
               tags={tags}
               openId={openId}
               onOpenChange={setOpenId}
+              now={now}
+              canAdd={canAdd}
+              onAddBelow={(index) => addShelfAt(index + 1)}
+              onPreviewAt={previewAt}
             />
-          </FormSection>
-
-          <FormSection id="banner" title="Banner" description="One banner at the top of Home. Optional.">
-            <BannerEditor value={doc.banner} onChange={(banner) => setDoc((d) => ({ ...d, banner }))} errors={errors} />
           </FormSection>
 
           <FormSection id="options" title="Options">
@@ -248,7 +335,7 @@ export function HomeLayoutEditor({
                   On: the shelf matching what a person said they come for can move to the top, as today. Off: your order is exact.
                 </p>
               </div>
-              <Switch
+              <HomeSwitch
                 id="respect-purpose"
                 checked={doc.respect_purpose}
                 onCheckedChange={(respect_purpose) => setDoc((d) => ({ ...d, respect_purpose }))}
@@ -261,14 +348,41 @@ export function HomeLayoutEditor({
               history={history}
               disabled={missingTable}
               busyId={busyId === "save" || busyId === "publish" ? "busy" : busyId}
-              onRepublish={(id) => run(id, () => republishHomeVersionAction(id), "That version is live again")}
-              onReset={() => run("reset", () => resetHomeLayoutAction(null), "Home is back to the built-in layout")}
+              previewId={previewVersion?.id ?? null}
+              onPreview={(v) => {
+                setPreviewVersion(v)
+                if (v) showPreview()
+              }}
+              onRestore={setRestoreVersion}
+              onReset={async () => {
+                const ok = await run("reset", () => resetHomeLayoutAction(null), "Home is back to the built-in layout")
+                if (ok) backToNow()
+              }}
             />
           </FormSection>
         </div>
 
         <aside id="preview" className="flex min-w-0 scroll-mt-6 flex-col gap-4 lg:sticky lg:top-6">
-          <PhonePreview document={doc} cafes={cafes} />
+          <PhonePreview
+            document={previewVersion ? normalizeDocument(previewVersion.document) : doc}
+            cafes={cafes}
+            time={previewTime}
+            onTimeChange={setPreviewTime}
+            onSelect={selectFromPreview}
+            version={
+              previewVersion
+                ? {
+                    label: `the version from ${formatWhen(previewVersion.published_at)}`,
+                    live: previewVersion.status === "published",
+                    onBack: () => setPreviewVersion(null),
+                    onRestore:
+                      previewVersion.status === "published" || missingTable
+                        ? undefined
+                        : () => setRestoreVersion(previewVersion),
+                  }
+                : null
+            }
+          />
         </aside>
       </div>
 
@@ -281,7 +395,7 @@ export function HomeLayoutEditor({
           setDoc(baseline)
           setShowErrors(false)
         }}
-        savedLabel={hasDraft ? "Draft saved" : "Default order, not saved yet"}
+        savedLabel={savedLabel}
       >
         <Button variant="outline" onClick={saveDraft} disabled={saving || missingTable || dirtyCount === 0}>
           {busyId === "save" && <Spinner />}
@@ -289,44 +403,31 @@ export function HomeLayoutEditor({
         </Button>
         <Button
           onClick={() => (errorCount > 0 ? firstError() : setPublishOpen(true))}
-          disabled={saving || missingTable || (draftIsLive && dirtyCount === 0)}
+          disabled={saving || missingTable || nothingToPublish}
         >
-          Publish
+          {nothingToPublish ? "Nothing new to publish" : "Publish"}
         </Button>
       </SaveBar>
 
-      <Dialog open={publishOpen} onOpenChange={setPublishOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Publish this layout?</DialogTitle>
-            <DialogDescription>
-              Everyone on a current app version sees it on their next Home refresh. Unsaved edits are saved first, and the
-              layout live now moves to Versions.
-            </DialogDescription>
-          </DialogHeader>
-          <Field label="Note" htmlFor="publish-note" optional hint="Shown in Versions, e.g. “Rainy season layout”.">
-            <Textarea
-              id="publish-note"
-              rows={2}
-              maxLength={LIMITS.note}
-              value={note}
-              onChange={(e) => setNote(e.target.value)}
-            />
-          </Field>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setPublishOpen(false)} disabled={saving}>
-              Go back
-            </Button>
-            <Button
-              onClick={() => void publish()}
-              disabled={saving}
-            >
-              {busyId === "publish" && <Spinner />}
-              Publish layout
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <PublishDialog
+        open={publishOpen}
+        onOpenChange={setPublishOpen}
+        changes={changes}
+        against={published ? `the layout live since ${formatWhen(published.published_at)}` : "the built-in Home"}
+        note={note}
+        onNoteChange={setNote}
+        busy={saving}
+        onPublish={() => void publish()}
+      />
+
+      <RestoreDialog
+        version={restoreVersion}
+        unsaved={dirtyCount}
+        unpublished={savedUnpublished}
+        onOpenChange={(o) => !o && setRestoreVersion(null)}
+        onPublish={(v) => void republish(v)}
+        onOpenAsDraft={openAsDraft}
+      />
     </div>
   )
 }

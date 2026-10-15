@@ -28,10 +28,12 @@ import {
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Switch } from "@/components/ui/switch"
 import { Field } from "@/components/admin/form-kit"
+import { TONES } from "@/components/admin/table-kit"
 import { CafePicker } from "@/components/admin/home/cafe-picker"
-import { ScheduleFields } from "@/components/admin/home/schedule-fields"
+import { HomeSwitch } from "@/components/admin/home/home-switch"
+import { ScheduleChip, ScheduleFields } from "@/components/admin/home/schedule-fields"
+import { NEARBY_MAX_POSITION, NEARBY_WARNING } from "@/lib/home-layout/changes"
 import {
   builtinInfo,
   describeSchedule,
@@ -82,6 +84,10 @@ export function SectionList({
   tags,
   openId,
   onOpenChange,
+  now,
+  onAddBelow,
+  canAdd,
+  onPreviewAt,
 }: {
   sections: HomeSection[]
   onChange: (next: HomeSection[]) => void
@@ -91,6 +97,12 @@ export function SectionList({
   tags: string[]
   openId: string | null
   onOpenChange: (id: string | null) => void
+  /** Client clock for the schedule chips; null before mount. */
+  now: Date | null
+  /** Adds a custom shelf right after this index and opens it. */
+  onAddBelow: (index: number) => void
+  canAdd: boolean
+  onPreviewAt: (iso: string) => void
 }) {
   const [dragIndex, setDragIndex] = React.useState<number | null>(null)
   const [overIndex, setOverIndex] = React.useState<number | null>(null)
@@ -105,6 +117,8 @@ export function SectionList({
     next.splice(to, 0, item)
     onChange(next)
   }
+
+  const nearbyIndex = sections.findIndex((s) => s.id === "nearby")
 
   return (
     <>
@@ -160,6 +174,12 @@ export function SectionList({
                       <span className="shrink-0 rounded-full bg-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
                         {s.type === "custom" ? "Custom" : "Built in"}
                       </span>
+                      <span className="max-sm:hidden">
+                        <ScheduleChip schedule={s.schedule} now={now} />
+                      </span>
+                    </span>
+                    <span className="mt-1 flex sm:hidden empty:hidden">
+                      <ScheduleChip schedule={s.schedule} now={now} />
                     </span>
                     <span className="mt-0.5 flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground">
                       {hasError ? (
@@ -179,7 +199,7 @@ export function SectionList({
                     aria-hidden
                   />
                 </button>
-                <Switch
+                <HomeSwitch
                   checked={s.visible}
                   onCheckedChange={(visible) => update(s.id, { visible })}
                   aria-label={`Show ${title}`}
@@ -195,9 +215,10 @@ export function SectionList({
                     cafes={cafes}
                     cafesById={cafesById}
                     tags={tags}
+                    onPreviewAt={onPreviewAt}
                   />
                   <div className="flex flex-wrap items-center gap-2 border-t pt-4">
-                    <Button type="button" variant="outline" size="sm" disabled={index === 0} onClick={() => move(index, index - 1)}>
+                    <Button type="button" variant="outline" size="sm" className="max-sm:h-11" disabled={index === 0} onClick={() => move(index, index - 1)}>
                       <ArrowUpIcon aria-hidden />
                       Move up
                     </Button>
@@ -205,14 +226,26 @@ export function SectionList({
                       type="button"
                       variant="outline"
                       size="sm"
+                      className="max-sm:h-11"
                       disabled={index === sections.length - 1}
                       onClick={() => move(index, index + 1)}
                     >
                       <ArrowDownIcon aria-hidden />
                       Move down
                     </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="max-sm:h-11"
+                      disabled={!canAdd}
+                      onClick={() => onAddBelow(index)}
+                    >
+                      <PlusIcon aria-hidden />
+                      Add shelf below
+                    </Button>
                     {s.type === "custom" && (
-                      <Button type="button" variant="ghost" size="sm" className="ml-auto text-destructive hover:text-destructive" onClick={() => setConfirmDelete(s)}>
+                      <Button type="button" variant="ghost" size="sm" className="ml-auto text-destructive hover:text-destructive max-sm:h-11" onClick={() => setConfirmDelete(s)}>
                         <TrashIcon aria-hidden />
                         Delete shelf
                       </Button>
@@ -224,6 +257,20 @@ export function SectionList({
           )
         })}
       </ol>
+
+      {nearbyIndex >= NEARBY_MAX_POSITION && (
+        <div className={cn("flex flex-wrap items-center gap-x-3 gap-y-2 rounded-lg px-3 py-2.5 text-[13px]", TONES.warning)} role="status">
+          <span className="flex min-w-0 flex-1 items-start gap-1.5">
+            <WarningCircleIcon className="mt-0.5 size-4 shrink-0" aria-hidden />
+            <span className="min-w-0">
+              Near you is at #{nearbyIndex + 1}. {NEARBY_WARNING}
+            </span>
+          </span>
+          <Button type="button" variant="outline" size="sm" className="bg-background max-sm:h-11" onClick={() => move(nearbyIndex, 1)}>
+            Move it to #2
+          </Button>
+        </div>
+      )}
 
       <AlertDialog open={!!confirmDelete} onOpenChange={(o) => !o && setConfirmDelete(null)}>
         <AlertDialogContent>
@@ -268,6 +315,7 @@ function SectionEditor({
   cafes,
   cafesById,
   tags,
+  onPreviewAt,
 }: {
   section: HomeSection
   onPatch: (patch: Partial<HomeSection>) => void
@@ -275,6 +323,7 @@ function SectionEditor({
   cafes: HomeCafe[]
   cafesById: Map<string, HomeCafe>
   tags: string[]
+  onPreviewAt: (iso: string) => void
 }) {
   const p = `sections.${s.id}`
   const def = s.type === "builtin" ? builtinInfo(s.id)?.title : undefined
@@ -290,7 +339,7 @@ function SectionEditor({
         <Input
           id={`${s.id}-title`}
           value={s.title ?? ""}
-          placeholder={def ?? "Rainy-day cafés"}
+          placeholder={def}
           onChange={(e) => onPatch({ title: e.target.value })}
           aria-invalid={!!errors[`${p}.title`]}
         />
@@ -325,6 +374,7 @@ function SectionEditor({
         errors={errors}
         errorPrefix={`${p}.schedule`}
         what="shelf"
+        onPreviewAt={onPreviewAt}
       />
     </>
   )
@@ -478,7 +528,7 @@ function CustomSource({
 
 function MatchWarning({ count }: { count: number }) {
   return (
-    <span className="inline-flex items-start gap-1.5 rounded-md bg-[#FFF4DC] px-2.5 py-1.5 text-[13px] text-[#8A5A00]">
+    <span className={cn("inline-flex items-start gap-1.5 rounded-md px-2.5 py-1.5 text-[13px]", TONES.warning)}>
       <WarningCircleIcon className="mt-0.5 size-3.5 shrink-0" aria-hidden />
       {count === 0 ? "No published café matches." : `Only ${count} café${count === 1 ? "" : "s"}.`} The app hides shelves with
       fewer than {LIMITS.minShelfCafes}.

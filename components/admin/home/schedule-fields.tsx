@@ -5,11 +5,13 @@
 // restating it. Times are Manila wall-clock.
 
 import * as React from "react"
-import { CalendarBlankIcon, XIcon } from "@phosphor-icons/react"
+import { CalendarBlankIcon, EyeIcon, XIcon } from "@phosphor-icons/react"
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Field } from "@/components/admin/form-kit"
+import { StatusChip } from "@/components/admin/table-kit"
+import { scheduleStatus } from "@/lib/home-layout/changes"
 import {
   describeSchedule,
   isoToManilaLocal,
@@ -29,6 +31,14 @@ const DAYS = [
   { n: 7, short: "Sun", long: "Sunday" },
 ]
 
+/** "Starts Oct 20" / "Showing · ends Oct 26" / "Ended Oct 10", for a row or
+ *  the banner. Nothing without a schedule or before the client clock is read. */
+export function ScheduleChip({ schedule, now }: { schedule: Schedule | null | undefined; now: Date | null }) {
+  const st = now ? scheduleStatus(schedule, now) : null
+  if (!st) return null
+  return <StatusChip tone={st.tone}>{st.label}</StatusChip>
+}
+
 export function ScheduleFields({
   idPrefix,
   value,
@@ -36,6 +46,7 @@ export function ScheduleFields({
   errors,
   errorPrefix,
   what,
+  onPreviewAt,
 }: {
   idPrefix: string
   value: Schedule | null | undefined
@@ -44,8 +55,19 @@ export function ScheduleFields({
   errorPrefix: string
   /** "shelf" or "banner", for the copy. */
   what: string
+  /** Sets the phone preview to this moment (Preview at start / at end). */
+  onPreviewAt?: (iso: string) => void
 }) {
-  const [open, setOpen] = React.useState(!!value)
+  // Open while there is a schedule, or after "Add a schedule". When the
+  // schedule goes away (Remove, or Discard in the save bar) the panel closes.
+  const [userOpened, setUserOpened] = React.useState(false)
+  const [had, setHad] = React.useState(value != null)
+  if (had !== (value != null)) {
+    setHad(value != null)
+    if (value == null) setUserOpened(false)
+  }
+  const open = value != null || userOpened
+  const setOpen = setUserOpened
   const s: Schedule = value ?? {}
   const summary = describeSchedule(value)
 
@@ -68,8 +90,12 @@ export function ScheduleFields({
 
   return (
     <fieldset className="flex min-w-0 flex-col gap-4 rounded-lg border p-4">
+      {/* The legend stays the fieldset's first child so the group keeps its name. */}
+      <legend className="sr-only">Schedule for this {what}</legend>
       <div className="flex items-start justify-between gap-3">
-        <legend className="text-sm font-medium">Schedule</legend>
+        <span aria-hidden className="text-sm font-medium">
+          Schedule
+        </span>
         <Button
           type="button"
           variant="ghost"
@@ -152,6 +178,7 @@ export function ScheduleFields({
         </Field>
       </div>
 
+      <div className="flex flex-col gap-2">
       <p className="text-[13px] text-muted-foreground" aria-live="polite">
         {summary ? (
           <>
@@ -161,6 +188,33 @@ export function ScheduleFields({
           "Nothing set yet, so it always shows. Times are Manila time."
         )}
       </p>
+      {onPreviewAt && (s.starts_at || s.ends_at) && (
+        <div className="flex flex-wrap gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="max-sm:h-11"
+            disabled={!s.starts_at}
+            onClick={() => s.starts_at && onPreviewAt(s.starts_at)}
+          >
+            <EyeIcon aria-hidden />
+            Preview at start
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="max-sm:h-11"
+            disabled={!s.ends_at}
+            onClick={() => s.ends_at && onPreviewAt(s.ends_at)}
+          >
+            <EyeIcon aria-hidden />
+            Preview at end
+          </Button>
+        </div>
+      )}
+      </div>
     </fieldset>
   )
 }

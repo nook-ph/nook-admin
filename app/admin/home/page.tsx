@@ -1,6 +1,7 @@
 import type { Metadata } from "next"
 
 import { HomeLayoutEditor } from "@/components/admin/home/home-layout-editor"
+import { isHomeLayoutFixture } from "@/lib/home-layout/dev-fixture"
 import { normalizeDocument } from "@/lib/home-layout/document"
 import {
   getActiveTagNames,
@@ -28,6 +29,7 @@ export default async function HomeLayoutPage() {
       history={data.history}
       cafes={cafes}
       tags={tags}
+      fixture={isHomeLayoutFixture()}
     />
   )
 }

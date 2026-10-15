@@ -6,34 +6,48 @@
 // as a short amber note, so the admin sees what dropped out and why.
 
 import * as React from "react"
-import { EyeSlashIcon, MapPinIcon, StarIcon, UserIcon } from "@phosphor-icons/react"
+import { ArrowCounterClockwiseIcon, ArrowLeftIcon, EyeSlashIcon, MapPinIcon, StarIcon, UserIcon } from "@phosphor-icons/react"
 
+import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { TONES } from "@/components/admin/table-kit"
 import { CafeThumb, cafeArea } from "@/components/admin/home/cafe-picker"
+import { useNow } from "@/components/admin/home/use-now"
 import { isoToManilaLocal, manilaLocalToIso, type HomeLayoutDocument } from "@/lib/home-layout/document"
 import { buildPreview, PREVIEW_ORIGIN } from "@/lib/home-layout/preview"
 import type { HomeCafe } from "@/lib/queries/home-layout"
 import { cn } from "@/lib/utils"
 
-function useNow() {
-  // Re-read "now" each minute so a schedule boundary shows without a reload.
-  const [now, setNow] = React.useState<Date | null>(null)
-  React.useEffect(() => {
-    // Set after mount (not during render) so server and client markup match.
-    const first = setTimeout(() => setNow(new Date()), 0)
-    const t = setInterval(() => setNow(new Date()), 60_000)
-    return () => {
-      clearTimeout(first)
-      clearInterval(t)
-    }
-  }, [])
-  return now
+export type PreviewTime = { mode: "now" | "pick"; picked: string }
+
+/** A past or live version shown in the frame instead of the draft. */
+export type PreviewVersion = {
+  label: string
+  live: boolean
+  onBack: () => void
+  onRestore?: () => void
 }
 
-export function PhonePreview({ document, cafes }: { document: HomeLayoutDocument; cafes: HomeCafe[] }) {
+export function PhonePreview({
+  document,
+  cafes,
+  time,
+  onTimeChange,
+  version,
+  onSelect,
+}: {
+  document: HomeLayoutDocument
+  cafes: HomeCafe[]
+  time: PreviewTime
+  onTimeChange: (next: PreviewTime) => void
+  /** Set while a version from Versions is shown instead of the draft. */
+  version?: PreviewVersion | null
+  /** Clicking a shelf or the banner in the frame opens its editor. */
+  onSelect?: (target: string) => void
+}) {
   const now = useNow()
-  const [mode, setMode] = React.useState<"now" | "pick">("now")
-  const [picked, setPicked] = React.useState("")
+  const { mode, picked } = time
+  const select = version ? undefined : onSelect
 
   const at = mode === "pick" && picked ? new Date(manilaLocalToIso(picked) ?? "") : now
   // ~200 cafés × a dozen shelves: cheap enough to rebuild on every edit.
@@ -64,12 +78,14 @@ export function PhonePreview({ document, cafes }: { document: HomeLayoutDocument
                 type="button"
                 role="radio"
                 aria-checked={mode === m}
-                onClick={() => {
-                  setMode(m)
-                  if (m === "pick" && !picked && now) setPicked(isoToManilaLocal(now.toISOString()))
-                }}
+                onClick={() =>
+                  onTimeChange({
+                    mode: m,
+                    picked: m === "pick" && !picked && now ? isoToManilaLocal(now.toISOString()) : picked,
+                  })
+                }
                 className={cn(
-                  "h-9 rounded-md px-3 text-[13px] font-medium outline-hidden focus-visible:ring-2 focus-visible:ring-ring sm:h-7",
+                  "h-11 rounded-md px-3 text-[13px] font-medium outline-hidden focus-visible:ring-2 focus-visible:ring-ring sm:h-7",
                   mode === m ? "bg-muted text-foreground" : "text-muted-foreground hover:text-foreground"
                 )}
               >
@@ -83,13 +99,34 @@ export function PhonePreview({ document, cafes }: { document: HomeLayoutDocument
             type="datetime-local"
             aria-label="Preview at (Manila time)"
             value={picked}
-            onChange={(e) => setPicked(e.target.value)}
+            onChange={(e) => onTimeChange({ mode: "pick", picked: e.target.value })}
           />
         ) : null}
         <p className="text-xs text-muted-foreground" aria-live="polite">
           {label}, Manila time · location as {PREVIEW_ORIGIN.label}
         </p>
       </div>
+
+      {version && (
+        <div className="flex flex-col gap-2 rounded-lg bg-muted px-3 py-2.5" role="status">
+          <p className="text-[13px]">
+            Previewing <span className="font-medium">{version.label}</span>
+            {version.live ? " (live now)" : ""}. Your draft is unchanged.
+          </p>
+          <div className="flex flex-wrap gap-2">
+            <Button type="button" variant="outline" size="sm" className="max-sm:h-11" onClick={version.onBack}>
+              <ArrowLeftIcon aria-hidden />
+              Back to draft
+            </Button>
+            {version.onRestore && (
+              <Button type="button" size="sm" className="max-sm:h-11" onClick={version.onRestore}>
+                <ArrowCounterClockwiseIcon aria-hidden />
+                Restore this version
+              </Button>
+            )}
+          </div>
+        </div>
+      )}
 
       <div className="mx-auto w-full max-w-[300px] rounded-[2.25rem] border-[6px] border-foreground/85 bg-background">
         <div
@@ -112,17 +149,36 @@ export function PhonePreview({ document, cafes }: { document: HomeLayoutDocument
             </div>
           ) : (
             <>
-              {preview.banner && <BannerCard banner={preview.banner} />}
+              {preview.banner && (
+                <Pick onSelect={select} target="banner" label="Edit the banner">
+                  <BannerCard banner={preview.banner} />
+                </Pick>
+              )}
               {preview.bannerHiddenReason && document.banner?.title && (
-                <HiddenNote title={`Banner: ${document.banner.title}`} reason={preview.bannerHiddenReason} />
+                <Pick onSelect={select} target="banner" label="Edit the banner">
+                  <HiddenNote title={`Banner: ${document.banner.title}`} reason={preview.bannerHiddenReason} />
+                </Pick>
               )}
               {preview.items.map((item) =>
                 item.kind === "hidden" ? (
-                  <HiddenNote key={item.hidden.id} title={item.hidden.title} reason={item.hidden.reason} />
+                  <Pick key={item.hidden.id} onSelect={select} target={item.hidden.id} label={`Edit ${item.hidden.title}`}>
+                    <HiddenNote title={item.hidden.title} reason={item.hidden.reason} />
+                  </Pick>
                 ) : (
                   <div key={item.shelf.id} className="pt-4">
                     <div className="flex items-baseline justify-between gap-2 px-4 pb-2">
-                      <h3 className="min-w-0 truncate text-[13px] font-semibold">{item.shelf.title}</h3>
+                      {select ? (
+                        <button
+                          type="button"
+                          onClick={() => select(item.shelf.id)}
+                          aria-label={`Edit ${item.shelf.title}`}
+                          className="-mx-1 min-w-0 truncate rounded px-1 text-left text-[13px] font-semibold outline-hidden hover:underline focus-visible:ring-2 focus-visible:ring-ring"
+                        >
+                          {item.shelf.title}
+                        </button>
+                      ) : (
+                        <h3 className="min-w-0 truncate text-[13px] font-semibold">{item.shelf.title}</h3>
+                      )}
                       {item.shelf.usesLocation && (
                         <MapPinIcon className="size-3 shrink-0 text-muted-foreground" aria-label="Uses location" />
                       )}
@@ -193,13 +249,39 @@ function BannerCard({ banner }: { banner: NonNullable<HomeLayoutDocument["banner
   )
 }
 
+/** Wraps something in the frame in a button that opens its editor; plain
+ *  when the frame is read-only (a version is shown). */
+function Pick({
+  onSelect,
+  target,
+  label,
+  children,
+}: {
+  onSelect?: (target: string) => void
+  target: string
+  label: string
+  children: React.ReactNode
+}) {
+  if (!onSelect) return <>{children}</>
+  return (
+    <button
+      type="button"
+      onClick={() => onSelect(target)}
+      aria-label={label}
+      className="block w-full rounded-xl text-left outline-hidden hover:opacity-90 focus-visible:ring-2 focus-visible:ring-ring"
+    >
+      {children}
+    </button>
+  )
+}
+
 function HiddenNote({ title, reason }: { title: string; reason: string }) {
   return (
-    <p className="mx-4 mt-3 flex items-start gap-1.5 rounded-md bg-[#FFF4DC] px-2.5 py-1.5 text-[11px] text-[#8A5A00]">
-      <EyeSlashIcon className="mt-px size-3 shrink-0" aria-hidden />
+    <span className={cn("mx-4 mt-3 flex items-start gap-1.5 rounded-md px-2.5 py-1.5 text-xs", TONES.warning)}>
+      <EyeSlashIcon className="mt-0.5 size-3 shrink-0" aria-hidden />
       <span className="min-w-0">
         <span className="font-medium">{title}</span> hidden · {reason}
       </span>
-    </p>
+    </span>
   )
 }
