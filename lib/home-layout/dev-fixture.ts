@@ -1,9 +1,9 @@
 // Local preview only. With HOME_LAYOUT_FIXTURE=1 in a non-production,
 // non-Vercel run, home_layouts reads and writes go to this in-memory store
 // instead of the database, so /admin/home can be tried before the migration
-// is applied. It does NOT skip sign-in: middleware still sends /admin/* to
-// /login without a superadmin session, and the server actions still check a
-// session whenever one exists (app/admin/home/actions.ts › actor()).
+// is applied. It does NOT skip sign-in: middleware sends /admin/* to /login
+// without a superadmin session, and every server action still calls
+// requireSuperadmin() (app/admin/home/actions.ts › actor()).
 // It never runs in production: isHomeLayoutFixture() is false whenever
 // NODE_ENV is "production" (every `next build`/`next start`) or VERCEL is set
 // (every Vercel build and function, preview included), whatever the flag says.

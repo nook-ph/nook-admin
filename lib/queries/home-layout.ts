@@ -93,12 +93,26 @@ export async function getHomeLayoutEditorData(): Promise<HomeLayoutEditorData> {
   }
 }
 
-/** Writes the draft row (creating it the first time). */
-export async function saveHomeLayoutDraft(document: HomeLayoutDocument, userId: string) {
+/** Thrown when the draft changed since the editor loaded it. */
+export const DRAFT_CONFLICT =
+  "Someone saved the draft since you opened this page (another tab or admin). Copy anything you need, reload, and apply your edits again."
+
+/** Writes the draft row (creating it the first time) and returns its new
+ *  updated_at. With `expectedUpdatedAt` (the draft's updated_at when the
+ *  editor loaded it, null when there was none) the write only happens if the
+ *  draft is still that one, so two tabs never silently overwrite each other;
+ *  without it (Reset, Publish this version again) the draft is replaced. */
+export async function saveHomeLayoutDraft(
+  document: HomeLayoutDocument,
+  userId: string,
+  expectedUpdatedAt?: string | null
+): Promise<string> {
+  const checkConflict = expectedUpdatedAt !== undefined
   if (isHomeLayoutFixture()) {
     const store = fixtureStore()
     const now = new Date().toISOString()
     const draft = store.rows.find((r) => r.status === "draft")
+    if (checkConflict && (draft?.updated_at ?? null) !== expectedUpdatedAt) throw new Error(DRAFT_CONFLICT)
     if (draft) {
       draft.document = document
       draft.updated_at = now
@@ -115,28 +129,42 @@ export async function saveHomeLayoutDraft(document: HomeLayoutDocument, userId: 
         published_at: null,
       })
     }
-    return
+    return now
   }
 
   const supabase = createAdminClient()
   const { data: existing, error: readError } = await supabase
     .from("home_layouts")
-    .select("id")
+    .select("id, updated_at")
     .eq("status", "draft")
     .maybeSingle()
   if (readError) throw readError
 
   if (existing) {
-    const { error } = await supabase.from("home_layouts").update({ document }).eq("id", existing.id)
+    if (checkConflict && existing.updated_at !== expectedUpdatedAt) throw new Error(DRAFT_CONFLICT)
+    let update = supabase.from("home_layouts").update({ document }).eq("id", existing.id)
+    // Compare-and-set: a save that lands between the read and this write
+    // changes updated_at, so this matches no row.
+    if (checkConflict) update = update.eq("updated_at", existing.updated_at as string)
+    const { data, error } = await update.select("updated_at")
     if (error) throw error
-    return
+    if (!data || data.length === 0) throw new Error(DRAFT_CONFLICT)
+    return data[0].updated_at as string
   }
-  const { error } = await supabase
+  if (checkConflict && expectedUpdatedAt !== null) throw new Error(DRAFT_CONFLICT)
+  const { data, error } = await supabase
     .from("home_layouts")
     .insert({ status: "draft", document, created_by: userId })
-  // 23505: another tab created the draft a moment ago; write to that one.
-  if (error?.code === "23505") return saveHomeLayoutDraft(document, userId)
+    .select("updated_at")
+    .single()
+  // 23505: another tab created the draft a moment ago. A checked save is a
+  // conflict; an unchecked one (Reset, restore) writes to that draft.
+  if (error?.code === "23505") {
+    if (checkConflict) throw new Error(DRAFT_CONFLICT)
+    return saveHomeLayoutDraft(document, userId)
+  }
   if (error) throw error
+  return data.updated_at as string
 }
 
 /** Archives the live layout and publishes `document` in one transaction

@@ -34,12 +34,14 @@ import {
   defaultDocument,
   isoToManilaLocal,
   LIMITS,
+  MAX_CUSTOM_SHELVES,
   newCustomSection,
   normalizeDocument,
   validateDocument,
   type HomeLayoutDocument,
 } from "@/lib/home-layout/document"
 import type { HomeCafe, HomeLayoutVersion } from "@/lib/queries/home-layout"
+import { cn } from "@/lib/utils"
 
 const EPOCH = new Date(0)
 
@@ -99,12 +101,18 @@ export function HomeLayoutEditor({
   const [restoreVersion, setRestoreVersion] = React.useState<HomeLayoutVersion | null>(null)
   const now = useNow()
 
+  // The draft's updated_at this editor last saw; saves send it so a draft
+  // saved meanwhile in another tab is never overwritten silently.
+  const [draftStamp, setDraftStamp] = React.useState(draftUpdatedAt)
+
   // The server sends a new initialDocument after each save/publish refresh.
+  // The form is inert while an action runs, so nothing typed can be lost here.
   const [lastInitial, setLastInitial] = React.useState(initialDocument)
   if (lastInitial !== initialDocument) {
     setLastInitial(initialDocument)
     setBaseline(initialDocument)
     setDoc(initialDocument)
+    setDraftStamp(draftUpdatedAt)
   }
 
   const cafesById = React.useMemo(() => new Map(cafes.map((c) => [c.id, c])), [cafes])
@@ -127,7 +135,7 @@ export function HomeLayoutEditor({
   const unpublished = changes.changes.length
   const nothingToPublish = !!published && unpublished === 0
   const customCount = doc.sections.filter((s) => s.type === "custom").length
-  const canAdd = doc.sections.length < LIMITS.sections && customCount < LIMITS.customShelves
+  const canAdd = doc.sections.length < LIMITS.sections && customCount < MAX_CUSTOM_SHELVES
 
   function addShelfAt(index: number) {
     const s = newCustomSection()
@@ -182,14 +190,27 @@ export function HomeLayoutEditor({
     }
   }
 
-  async function run(label: string, fn: () => Promise<{ success: boolean; error?: string }>, okMessage: string) {
+  async function run(
+    label: string,
+    fn: () => Promise<{ success: boolean; error?: string; warning?: string; draftUpdatedAt?: string }>,
+    okMessage: string
+  ) {
     setSaving(true)
     setBusyId(label)
-    const res = await fn()
-    setSaving(false)
-    setBusyId(null)
+    let res: Awaited<ReturnType<typeof fn>>
+    try {
+      res = await fn()
+    } catch {
+      // The request itself failed (offline, a new deploy): nothing changed here.
+      res = { success: false, error: "Couldn’t reach the server. Check your connection and try again." }
+    } finally {
+      setSaving(false)
+      setBusyId(null)
+    }
     if (res.success) {
-      toast.success(okMessage)
+      if (res.draftUpdatedAt) setDraftStamp(res.draftUpdatedAt)
+      if (res.warning) toast.warning(res.warning)
+      else toast.success(okMessage)
       router.refresh()
     } else {
       toast.error(res.error ?? "Something went wrong")
@@ -199,7 +220,7 @@ export function HomeLayoutEditor({
 
   async function saveDraft() {
     if (errorCount > 0) return firstError()
-    await run("save", () => saveHomeDraftAction(doc), "Draft saved")
+    await run("save", () => saveHomeDraftAction(doc, draftStamp), "Draft saved")
   }
 
   async function publish() {
@@ -207,7 +228,7 @@ export function HomeLayoutEditor({
       setPublishOpen(false)
       return firstError()
     }
-    const ok = await run("publish", () => publishHomeLayoutAction(doc, note.trim() || null), "Published. Phones pick it up on their next Home refresh.")
+    const ok = await run("publish", () => publishHomeLayoutAction(doc, note.trim() || null, draftStamp), "Published. Phones pick it up on their next Home refresh.")
     if (ok) {
       setPublishOpen(false)
       setNote("")
@@ -291,7 +312,9 @@ export function HomeLayoutEditor({
       )}
 
       <div className="grid grid-cols-1 items-start gap-8 lg:grid-cols-[minmax(0,1fr)_320px] lg:gap-10">
-        <div className="flex min-w-0 flex-col">
+        {/* Inert while saving: the refresh that follows replaces the form with
+            what was saved, so edits made meanwhile would be dropped. */}
+        <div className={cn("flex min-w-0 flex-col", saving && "opacity-80")} inert={saving}>
           <FormSection id="banner" title="Banner" description="One banner at the top of Home, above every shelf. Optional.">
             <BannerEditor
               value={doc.banner}
@@ -305,7 +328,7 @@ export function HomeLayoutEditor({
           <FormSection
             id="shelves"
             title="Shelves"
-            description={`Top to bottom, as on the phone. Drag a row or open it to move it. ${doc.sections.length} of ${LIMITS.sections} · ${customCount} of ${LIMITS.customShelves} custom.`}
+            description={`Top to bottom, as on the phone. Drag a row or open it to move it. ${doc.sections.length} of ${LIMITS.sections} · ${customCount} of ${MAX_CUSTOM_SHELVES} custom.`}
             action={<AddShelfButton disabled={!canAdd} onAdd={() => addShelfAt(doc.sections.length)} />}
           >
             {errors["sections"] && <p className="text-xs text-destructive">{errors["sections"]}</p>}
@@ -354,6 +377,8 @@ export function HomeLayoutEditor({
                 if (v) showPreview()
               }}
               onRestore={setRestoreVersion}
+              unsaved={dirtyCount}
+              unpublished={savedUnpublished}
               onReset={async () => {
                 const ok = await run("reset", () => resetHomeLayoutAction(null), "Home is back to the built-in layout")
                 if (ok) backToNow()

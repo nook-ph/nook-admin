@@ -61,6 +61,8 @@ export function Versions({
   previewId,
   onPreview,
   onRestore,
+  unsaved,
+  unpublished,
   onReset,
 }: {
   history: HomeLayoutVersion[]
@@ -70,6 +72,10 @@ export function Versions({
   previewId: string | null
   onPreview: (v: HomeLayoutVersion | null) => void
   onRestore: (v: HomeLayoutVersion) => void
+  /** Edits in the editor not yet saved. */
+  unsaved: number
+  /** Changes in the saved draft that aren't live (drafts aren't kept in history). */
+  unpublished: number
   onReset: () => void
 }) {
   const [showAll, setShowAll] = React.useState(false)
@@ -164,9 +170,17 @@ export function Versions({
             <AlertDialogTitle>Reset Home to default?</AlertDialogTitle>
             <AlertDialogDescription>
               Everyone gets the built-in Home and no banner on their next refresh. The draft starts over from the default
-              order; unsaved edits are lost. The current layout stays in history.
+              order. The current layout stays in history.
             </AlertDialogDescription>
           </AlertDialogHeader>
+          {(unsaved > 0 || unpublished > 0) && (
+            <p className={cn("flex items-start gap-2 rounded-md px-3 py-2 text-[13px]", TONES.warning)}>
+              <WarningCircleIcon className="mt-0.5 size-4 shrink-0" aria-hidden />
+              {unsaved > 0
+                ? `You have ${unsaved} unsaved ${unsaved === 1 ? "change" : "changes"}; they are lost.`
+                : `Your saved draft has ${unpublished} ${unpublished === 1 ? "change" : "changes"} that ${unpublished === 1 ? "isn’t" : "aren’t"} live. Drafts aren’t kept in history, so ${unpublished === 1 ? "it is" : "they are"} lost.`}
+            </p>
+          )}
           <AlertDialogFooter>
             <AlertDialogCancel>Go back</AlertDialogCancel>
             <AlertDialogAction
