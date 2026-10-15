@@ -93,7 +93,7 @@ export function PhonePreview({ document, cafes }: { document: HomeLayoutDocument
 
       <div className="mx-auto w-full max-w-[300px] rounded-[2.25rem] border-[6px] border-foreground/85 bg-background">
         <div
-          className="h-[560px] overflow-y-auto overscroll-contain rounded-[1.85rem] pb-6"
+          className="h-[min(560px,calc(100dvh-260px))] min-h-80 overflow-y-auto overscroll-contain rounded-[1.85rem] pb-6 [scrollbar-width:none]"
           aria-label="Phone preview"
           role="region"
         >
@@ -132,14 +132,20 @@ export function PhonePreview({ document, cafes }: { document: HomeLayoutDocument
                         Each person’s saved and recent cafés. Hidden for people with none.
                       </p>
                     ) : (
-                      <ul className="flex gap-2.5 overflow-x-auto overscroll-contain px-4 pb-1">
+                      <ul className="flex gap-2.5 overflow-x-auto overscroll-contain px-4 pb-1 [scrollbar-width:none]">
                         {item.shelf.cafes.slice(0, 10).map((c) => (
                           <li key={c.id} className="w-28 shrink-0">
                             <CafeThumb cafe={c} className="aspect-[4/3] h-auto w-28 rounded-lg" />
                             <p className="mt-1 truncate text-[11px] font-medium">{c.name}</p>
                             <p className="flex items-center gap-1 truncate text-[10px] text-muted-foreground">
-                              <StarIcon weight="fill" className="size-2.5 shrink-0" aria-hidden />
-                              <span className="tabular-nums">{c.rating.toFixed(1)}</span>
+                              {c.review_count > 0 ? (
+                                <>
+                                  <StarIcon weight="fill" className="size-2.5 shrink-0" aria-hidden />
+                                  <span className="tabular-nums">{c.rating.toFixed(1)}</span>
+                                </>
+                              ) : (
+                                <span>New</span>
+                              )}
                               <span className="truncate">· {cafeArea(c)}</span>
                             </p>
                           </li>

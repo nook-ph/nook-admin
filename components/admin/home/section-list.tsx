@@ -366,7 +366,7 @@ function CustomSource({
     <div className="flex flex-col gap-4">
       <div className="flex flex-col gap-1.5">
         <span id={`${s.id}-source`} className="text-sm font-medium">
-          Cafés
+          Fill with
         </span>
         <div role="radiogroup" aria-labelledby={`${s.id}-source`} className="inline-flex w-fit rounded-lg border bg-background p-0.5">
           {(

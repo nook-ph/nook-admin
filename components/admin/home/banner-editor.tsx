@@ -129,9 +129,9 @@ export function BannerEditor({
             />
           </div>
 
-          <Field label="Title" htmlFor="banner-title" error={errors["banner.title"]}>
+          <Field label="Title" htmlFor="banner-headline" error={errors["banner.title"]}>
             <Input
-              id="banner-title"
+              id="banner-headline"
               value={value.title}
               placeholder="Cebu Coffee Crawl this Saturday"
               onChange={(e) => set({ title: e.target.value })}
