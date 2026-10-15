@@ -6,6 +6,7 @@ import { requireSuperadmin } from "@/lib/auth/require-superadmin"
 import {
   cleanDocument,
   defaultDocument,
+  isResetDocument,
   LIMITS,
   normalizeDocument,
   resetDocument,
@@ -66,8 +67,12 @@ function clip(note: string) {
 
 /** Normalise, clean and validate a document coming from the client. */
 async function checked(input: unknown): Promise<HomeLayoutDocument> {
-  const doc = cleanDocument(normalizeDocument(input))
-  const errors = validateDocument(doc, await getActiveTagNames())
+  const read = normalizeDocument(input)
+  const doc = cleanDocument(read)
+  const tags = await getActiveTagNames()
+  // Checked as read too: cleaning drops a half-set hours window and folds
+  // days into "every day", which would hide a bad value from the check.
+  const errors = { ...validateDocument(doc, tags), ...validateDocument(read, tags) }
   const first = Object.values(errors)[0]
   if (first) throw new Error(`The layout has ${Object.keys(errors).length} thing(s) to fix: ${first}`)
   return doc
@@ -140,11 +145,9 @@ export async function republishHomeVersionAction(id: string, expectedUpdatedAt: 
     // it lists every builtin (nearby included) and validated like a fresh
     // publish (a tag may have been removed since). If it fails, the admin can
     // Open as draft and fix it.
-    // Only a document with no sections and no banner is a reset (the app's
-    // isDefault); one with just a banner keeps it.
-    const raw = row.document as Partial<HomeLayoutDocument> | null
-    const doc =
-      Array.isArray(raw?.sections) && raw.sections.length === 0 && !raw.banner ? resetDocument() : await checked(row.document)
+    // A reset is no sections and no banner the app would show (isResetDocument);
+    // one with a live banner keeps it.
+    const doc = isResetDocument(row.document) ? resetDocument() : await checked(row.document)
     const when = row.published_at
       ? new Intl.DateTimeFormat("en-PH", { timeZone: "Asia/Manila", dateStyle: "medium" }).format(new Date(row.published_at))
       : "an earlier version"

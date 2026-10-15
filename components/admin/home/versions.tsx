@@ -21,7 +21,7 @@ import {
 import { Button } from "@/components/ui/button"
 import { Spinner } from "@/components/ui/spinner"
 import { StatusChip, TONES } from "@/components/admin/table-kit"
-import { normalizeDocument } from "@/lib/home-layout/document"
+import { isResetDocument, normalizeDocument } from "@/lib/home-layout/document"
 import type { HomeLayoutVersion } from "@/lib/queries/home-layout"
 import { cn } from "@/lib/utils"
 
@@ -38,9 +38,8 @@ export function formatWhen(iso: string | null) {
 }
 
 export function describeVersion(v: HomeLayoutVersion) {
-  const doc = v.document as { sections?: unknown[]; banner?: { enabled?: boolean } | null } | null
-  // A reset only when there is no banner either (as Restore and the app's isDefault).
-  if (Array.isArray(doc?.sections) && doc.sections.length === 0 && !doc.banner) return "Built-in Home"
+  // As Restore and the app's isDefault.
+  if (isResetDocument(v.document)) return "Built-in Home"
   const n = normalizeDocument(v.document)
   const shown = n.sections.filter((s) => s.visible).length
   const custom = n.sections.filter((s) => s.type === "custom").length

@@ -131,6 +131,17 @@ export function defaultDocument(): HomeLayoutDocument {
   return { schema: 1, respect_purpose: true, banner: null, sections: defaultSections() }
 }
 
+/** Whether a stored document is the app's built-in Home (nook-mobile
+ *  HomeLayout: no sections, and no banner it would show — a missing one, one
+ *  turned off, or one without a title). */
+export function isResetDocument(raw: unknown): boolean {
+  if (!raw || typeof raw !== "object") return false
+  const d = raw as { sections?: unknown; banner?: unknown }
+  if (!Array.isArray(d.sections) || d.sections.length > 0) return false
+  const b = d.banner as { enabled?: unknown; title?: unknown } | null | undefined
+  return !b || typeof b !== "object" || b.enabled === false || typeof b.title !== "string" || !b.title.trim()
+}
+
 /** What "Reset to default" publishes: no sections and no banner, so the app
  *  uses its built-in Home (HOME_LAYOUT.md › Storage). */
 export function resetDocument(): HomeLayoutDocument {
