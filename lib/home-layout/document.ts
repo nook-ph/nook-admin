@@ -161,17 +161,23 @@ export function normalizeDocument(input: unknown): HomeLayoutDocument {
   const doc = (input && typeof input === "object" ? input : {}) as Partial<HomeLayoutDocument>
   const sections = Array.isArray(doc.sections) ? doc.sections.filter(isSection) : []
   const listed = sections.length > 0 ? sections : defaultSections()
-  // Builtins missing from the list are appended in default order, as the app
-  // does, so the editor shows every shelf the phone will show.
-  const missing = BUILTINS.filter((b) => !listed.some((s) => s.id === b.id)).map(
-    (b): HomeSection => ({ id: b.id, type: "builtin", visible: true, title: b.title })
-  )
   return {
     schema: 1,
     respect_purpose: doc.respect_purpose !== false,
     banner: doc.banner && typeof doc.banner === "object" ? (doc.banner as Banner) : null,
-    sections: [...listed, ...missing],
+    sections: withAllBuiltins(listed),
   }
+}
+
+/** Builtins missing from the list are appended in default order, as the app
+ *  does, so the editor shows every shelf the phone will show and every saved
+ *  document lists all nine (above all `nearby`: the app follows array order,
+ *  so a layout that drops it pushes "Near you" to the bottom of Home). */
+export function withAllBuiltins(sections: HomeSection[]): HomeSection[] {
+  const missing = BUILTINS.filter((b) => !sections.some((s) => s.id === b.id)).map(
+    (b): HomeSection => ({ id: b.id, type: "builtin", visible: true, title: b.title })
+  )
+  return missing.length > 0 ? [...sections, ...missing] : sections
 }
 
 function isSection(s: unknown): s is HomeSection {
@@ -213,7 +219,9 @@ export function cleanDocument(doc: HomeLayoutDocument): HomeLayoutDocument {
           schedule: cleanSchedule(doc.banner.schedule),
         }
       : null,
-    sections: doc.sections.map((s): HomeSection => {
+    // Never drop a builtin (nearby above all); an empty list stays empty,
+    // which is "Reset to default".
+    sections: (doc.sections.length > 0 ? withAllBuiltins(doc.sections) : []).map((s): HomeSection => {
       const schedule = cleanSchedule(s.schedule)
       if (s.type === "builtin") {
         const def = builtinInfo(s.id)?.title
