@@ -28,7 +28,10 @@ export function BannerEditor({
   now,
   onPreviewAt,
   onUploadingChange,
+  linkWarning,
 }: {
+  /** A shelf link that won't open a shelf (shelfLinkProblem); shown, not blocking. */
+  linkWarning?: string | null
   /** Save and Publish wait while an image uploads, or they'd go out without it. */
   onUploadingChange?: (uploading: boolean) => void
   value: Banner | null
@@ -94,7 +97,7 @@ export function BannerEditor({
             {on && <ScheduleChip schedule={value?.schedule} now={now} />}
           </span>
           <p className="text-xs text-muted-foreground">
-            Above every shelf. People can dismiss it; a new title shows it again.
+            Above every shelf. People can dismiss it; changing its title, text, image or link shows it again.
           </p>
         </div>
         <HomeSwitch
@@ -201,7 +204,13 @@ export function BannerEditor({
               label="Link"
               htmlFor="banner-link"
               optional
-              hint="A nook:// link opens a screen in the app; https:// opens the browser."
+              hint={
+                linkWarning ? (
+                  <span className="text-[#8A5A00]">{linkWarning}</span>
+                ) : (
+                  "A nook:// link opens a screen in the app (nook://shelf/<shelf id> opens one shelf); https:// opens the browser."
+                )
+              }
               error={errors["banner.link"]}
             >
               <Input

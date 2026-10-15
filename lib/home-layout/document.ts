@@ -94,6 +94,10 @@ export type CustomSection = {
 export type HomeSection = BuiltinSection | CustomSection
 
 export type Banner = {
+  /** HOME_LAYOUT.md › banner.id: what the app keys a dismissal on. Derived
+   *  from the banner's content by cleanDocument (bannerId), so it is the same
+   *  across publishes until the title, text, image or link changes. */
+  id?: string
   enabled: boolean
   title: string
   body?: string | null
@@ -107,8 +111,7 @@ export type HomeLayoutDocument = {
   schema: 1
   respect_purpose: boolean
   /** HOME_LAYOUT.md › pin_top: absent = true (Your places and Near you stay in
-   *  the top three). The editor has no control for it; it keeps a `false`
-   *  it reads so a restore publishes the version as it was. */
+   *  the top three). Only `false` is written. */
   pin_top?: false
   banner: Banner | null
   sections: HomeSection[]
@@ -328,6 +331,7 @@ export function cleanDocument(doc: HomeLayoutDocument): HomeLayoutDocument {
     ...(doc.pin_top === false ? { pin_top: false as const } : {}),
     banner: doc.banner
       ? {
+          id: bannerId(doc.banner),
           enabled: doc.banner.enabled !== false,
           title: str(doc.banner.title),
           body: clean(doc.banner.body),
@@ -367,6 +371,55 @@ export function cleanDocument(doc: HomeLayoutDocument): HomeLayoutDocument {
       }
     }),
   }
+}
+
+/** HOME_LAYOUT.md › banner.id: "banner-" + 16 hex digits hashed from the
+ *  trimmed title, text, image and link. A re-publish, a restore or a schedule
+ *  or on/off change keeps it (so a dismissed banner stays dismissed); changing
+ *  what the banner says, shows or opens makes a new one. The button label is
+ *  left out on purpose: rewording it is not a new banner. */
+export function bannerId(b: Pick<Banner, "title" | "body" | "image_url" | "link">): string {
+  const str = (v: unknown) => (typeof v === "string" ? v.trim() : "")
+  const input = [str(b.title), str(b.body), str(b.image_url), str(b.link)].join("\u0000")
+  // Two 32-bit FNV-1a hashes with different seeds: pure and synchronous, so
+  // the editor and the server always agree on it.
+  const fnv = (seed: number) => {
+    let h = seed >>> 0
+    for (let i = 0; i < input.length; i++) {
+      h ^= input.charCodeAt(i)
+      h = Math.imul(h, 0x01000193) >>> 0
+    }
+    return h.toString(16).padStart(8, "0")
+  }
+  return `banner-${fnv(0x811c9dc5)}${fnv(0x5bd1e995)}`
+}
+
+/** HOME_LAYOUT.md › Shelf links: the section id a `nook://shelf/<id>` link
+ *  opens, or null when the link is not a shelf link. */
+export function shelfLinkTarget(link: string | null | undefined): string | null {
+  const m = /^nook:\/\/shelf\/([^/?#]+)\/?(?:[?#].*)?$/i.exec((link ?? "").trim())
+  if (!m) return null
+  try {
+    return decodeURIComponent(m[1])
+  } catch {
+    return m[1]
+  }
+}
+
+/** Shelves whose full list is a search: the app opens that search instead. */
+const SEARCH_SHELVES = ["nearby", "newest", "trending", "top_rated", "specialty", "local_beans"]
+
+/** Why a banner's shelf link would land on "This shelf isn't on Nook right
+ *  now" for this document, or null when it opens a shelf (or isn't a shelf
+ *  link). A warning only: the shelf may be added before publishing. */
+export function shelfLinkProblem(doc: HomeLayoutDocument): string | null {
+  const id = shelfLinkTarget(doc.banner?.link)
+  if (id == null || SEARCH_SHELVES.includes(id)) return null
+  const s = doc.sections.find((x) => x.id === id)
+  if (!s) return `The link opens shelf “${id}”, which isn’t in this layout, so the app shows “This shelf isn’t on Nook right now”.`
+  if (s.type === "custom") return null
+  if (s.id === "featured" && (s.cafe_ids?.length ?? 0) > 0) return null
+  return `The link opens “${sectionTitle(s)}”, which has no page of its own${s.id === "featured" ? " while House picks are automatic" : ""}, so the app shows “This shelf isn’t on Nook right now”.`
 }
 
 // ---------------------------------------------------------------------------
@@ -481,11 +534,13 @@ export function manilaParts(date: Date) {
 }
 
 /** "2026-10-20T08:00" (Manila wall clock, as a datetime-local input holds it)
- *  → "2026-10-20T08:00:00+08:00". */
-export function manilaLocalToIso(local: string): string | null {
+ *  → "2026-10-20T08:00:00+08:00". With `endOfMinute` (an end time) the last
+ *  millisecond of that minute, "2026-10-20T08:00:59.999+08:00", so "ends 23:59"
+ *  shows through 23:59 (HOME_LAYOUT.md › Schedule evaluation). */
+export function manilaLocalToIso(local: string, endOfMinute = false): string | null {
   if (!local) return null
   const m = /^(\d{4}-\d{2}-\d{2})T(\d{2}:\d{2})/.exec(local)
-  return m ? `${m[1]}T${m[2]}:00+08:00` : null
+  return m ? `${m[1]}T${m[2]}:${endOfMinute ? "59.999" : "00"}+08:00` : null
 }
 
 /** The reverse: an ISO timestamp as a Manila datetime-local value. */

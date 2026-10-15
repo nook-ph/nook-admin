@@ -125,7 +125,7 @@ export function ScheduleFields({
             id={`${idPrefix}-ends`}
             type="datetime-local"
             value={isoToManilaLocal(s.ends_at)}
-            onChange={(e) => set({ ends_at: manilaLocalToIso(e.target.value) })}
+            onChange={(e) => set({ ends_at: manilaLocalToIso(e.target.value, true) })}
             aria-invalid={!!errors[`${errorPrefix}.ends_at`]}
           />
         </Field>

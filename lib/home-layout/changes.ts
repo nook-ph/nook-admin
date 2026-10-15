@@ -7,6 +7,7 @@ import {
   describeSchedule,
   isScheduleActive,
   sectionTitle,
+  shelfLinkProblem,
   type HomeLayoutDocument,
   type HomeSection,
   type Schedule,
@@ -93,6 +94,8 @@ export function layoutWarnings(doc: HomeLayoutDocument, now: Date): string[] {
     const st = scheduleStatus(b.schedule, now)
     if (st?.kind === "ended") warnings.push(`Banner: its schedule ended ${st.date}, so it won’t show.`)
     if (st?.kind === "upcoming") warnings.push(`Banner: starts ${st.date}; hidden until then.`)
+    const link = shelfLinkProblem(doc)
+    if (link) warnings.push(`Banner: ${link}`)
   }
   for (const s of doc.sections) {
     if (!s.visible) continue
