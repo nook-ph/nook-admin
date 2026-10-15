@@ -77,23 +77,57 @@ function pickIds(ids: string[], byId: Map<string, HomeCafe>) {
   return ids.map((id) => byId.get(id)).filter((c): c is HomeCafe => !!c)
 }
 
-function shelfCafes(s: HomeSection, cafes: HomeCafe[], byId: Map<string, HomeCafe>): Omit<PreviewShelf, "id" | "title"> {
+/** Cafés a rating shelf counts (nook-mobile minShelfReviews). */
+const MIN_SHELF_REVIEWS = 3
+
+type ShelfFill = Omit<PreviewShelf, "id" | "title"> & {
+  /** Hand-picked: shown in the admin's order. Else the app skips cafés that
+   *  already lead an earlier shelf (nook-mobile HomePage fresh()). */
+  exact?: boolean
+  /** Fewest cafés the app shows this shelf with (after fresh()). */
+  min: number
+  /** Built-ins the app's bloc holds back (empties) below `held` cafés, before
+   *  Home lays them out, and the reason shown. */
+  held?: number
+  why?: string
+}
+
+/** Highest rated / Crowd favorites as nook-mobile highestRated and
+ *  crowdFavorites: only cafés with 3+ reviews, and the shelf only with
+ *  enough of them. */
+function rated(list: HomeCafe[], min: number): ShelfFill {
+  return {
+    cafes: list.filter((c) => c.review_count >= MIN_SHELF_REVIEWS),
+    min: 1,
+    held: min,
+    why: `Needs ${min} cafés with ${MIN_SHELF_REVIEWS}+ reviews`,
+  }
+}
+
+function shelfCafes(s: HomeSection, cafes: HomeCafe[], byId: Map<string, HomeCafe>): ShelfFill {
+  const min = LIMITS.minShelfCafes
   if (s.type === "custom") {
-    if (s.source === "picked") return { cafes: pickIds(s.cafe_ids ?? [], byId).slice(0, LIMITS.cafeIdsPerSection) }
+    if (s.source === "picked") return { cafes: pickIds(s.cafe_ids ?? [], byId).slice(0, LIMITS.cafeIdsPerSection), exact: true, min }
     const rule = s.rule
-    if (!rule?.tag) return { cafes: [] }
+    if (!rule?.tag) return { cafes: [], min }
     return {
       cafes: sortCafes(withTags(cafes, [rule.tag]), rule.sort).slice(0, rule.limit),
       usesLocation: rule.sort === "nearby",
+      min,
     }
   }
+  // Built-in shelves show with any cafés at all, except the ones the app's
+  // bloc holds back (Local beans, Highest rated, Crowd favorites).
   switch (s.id) {
     case "your_places":
-      return { cafes: [], personal: true }
+      return { cafes: [], personal: true, min: 0 }
     case "nearby":
-      return { cafes: sortCafes(cafes, "nearby").slice(0, SHELF_SIZE), usesLocation: true }
+      return { cafes: sortCafes(cafes, "nearby").slice(0, SHELF_SIZE), usesLocation: true, min: 1 }
     case "featured": {
-      if (s.cafe_ids && s.cafe_ids.length > 0) return { cafes: pickIds(s.cafe_ids, byId) }
+      // Hand-picked cafés that are still published; with none left the app
+      // falls back to the automatic House picks.
+      const picks = pickIds(s.cafe_ids ?? [], byId)
+      if (picks.length > 0) return { cafes: picks, exact: true, min: 1 }
       // As the app (nook-mobile HomeBloc._buildFeatured): the featured cafés
       // among the Newest, Crowd favorites, Highest rated and Near you lists,
       // in that order, each once.
@@ -104,20 +138,27 @@ function shelfCafes(s: HomeSection, cafes: HomeCafe[], byId: Map<string, HomeCaf
         ...sortCafes(cafes, "top_rated").slice(0, SHELF_SIZE),
         ...sortCafes(cafes, "nearby").slice(0, SHELF_SIZE),
       ]
-      return { cafes: pool.filter((c) => c.is_featured && !seen.has(c.id) && !!seen.add(c.id)), usesLocation: true }
+      return { cafes: pool.filter((c) => c.is_featured && !seen.has(c.id) && !!seen.add(c.id)), usesLocation: true, min: 1 }
     }
     case "specialty":
-      return { cafes: sortCafes(withTags(cafes, ["Specialty Coffee"]), "nearby").slice(0, SHELF_SIZE), usesLocation: true }
+      return { cafes: sortCafes(withTags(cafes, ["Specialty Coffee"]), "nearby").slice(0, SHELF_SIZE), usesLocation: true, min: 1 }
     case "local_beans":
-      return { cafes: sortCafes(withTags(cafes, ["Philippine Beans"]), "nearby").slice(0, SHELF_SIZE), usesLocation: true }
+      // nook-mobile minLocalBeans.
+      return {
+        cafes: sortCafes(withTags(cafes, ["Philippine Beans"]), "nearby").slice(0, SHELF_SIZE),
+        usesLocation: true,
+        min: 1,
+        held: 3,
+        why: "Needs 3 cafés tagged Philippine Beans",
+      }
     case "newest":
-      return { cafes: sortCafes(cafes, "newest").slice(0, SHELF_SIZE) }
+      return { cafes: sortCafes(cafes, "newest").slice(0, SHELF_SIZE), min: 1 }
     case "laptop_friendly":
-      return { cafes: sortCafes(withTags(cafes, ["Free WiFi", "Power Outlets"]), "top_rated").slice(0, SHELF_SIZE) }
+      return { cafes: sortCafes(withTags(cafes, ["Free WiFi", "Power Outlets"]), "top_rated").slice(0, SHELF_SIZE), min: 1 }
     case "trending":
-      return { cafes: sortCafes(cafes, "trending").slice(0, SHELF_SIZE) }
+      return rated(sortCafes(cafes, "trending").slice(0, SHELF_SIZE), 5)
     case "top_rated":
-      return { cafes: sortCafes(cafes, "top_rated").slice(0, SHELF_SIZE) }
+      return rated(sortCafes(cafes, "top_rated").slice(0, SHELF_SIZE), 3)
   }
 }
 
@@ -158,6 +199,18 @@ export function buildPreview(doc: HomeLayoutDocument, cafes: HomeCafe[], at: Dat
   const shelves: PreviewShelf[] = []
   const hidden: PreviewHidden[] = []
   const items: HomePreview["items"] = []
+  // As nook-mobile HomePage: a café leads (first three cards of) one shelf
+  // only. A shelf skips cafés already leading an earlier one when 3+ others
+  // are left; hand-picked shelves keep their order and still claim theirs.
+  const seen = new Set<string>()
+  const lead = (list: HomeCafe[]) => {
+    for (const c of list.slice(0, 3)) seen.add(c.id)
+    return list
+  }
+  const fresh = (list: HomeCafe[]) => {
+    const rest = list.filter((c) => !seen.has(c.id))
+    return lead(rest.length >= 3 ? rest : list)
+  }
 
   for (const s of pinnedOrder(doc, at)) {
     const title = sectionTitle(s)
@@ -171,15 +224,20 @@ export function buildPreview(doc: HomeLayoutDocument, cafes: HomeCafe[], at: Dat
       items.push({ kind: "hidden", hidden: hidden[hidden.length - 1] })
       continue
     }
-    const shelf = shelfCafes(s, cafes, byId)
-    if (!shelf.personal && shelf.cafes.length < LIMITS.minShelfCafes) {
+    const { exact, min, held: heldBelow, why, ...shelf } = shelfCafes(s, cafes, byId)
+    const held = heldBelow != null && shelf.cafes.length < heldBelow
+    if (held) shelf.cafes = []
+    else shelf.cafes = exact ? lead(shelf.cafes) : fresh(shelf.cafes)
+    if (!shelf.personal && shelf.cafes.length < min) {
       hidden.push({
         id: s.id,
         title,
         reason:
-          shelf.cafes.length === 0
-            ? "No cafés yet"
-            : `Only ${shelf.cafes.length} café${shelf.cafes.length === 1 ? "" : "s"}; needs ${LIMITS.minShelfCafes}`,
+          held && why
+            ? why
+            : shelf.cafes.length === 0
+              ? "No cafés yet"
+              : `Only ${shelf.cafes.length} café${shelf.cafes.length === 1 ? "" : "s"}; needs ${min}`,
       })
       items.push({ kind: "hidden", hidden: hidden[hidden.length - 1] })
       continue
