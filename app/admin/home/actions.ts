@@ -1,6 +1,7 @@
 "use server"
 
 import { revalidatePath } from "next/cache"
+import { cookies } from "next/headers"
 
 import { requireSuperadmin } from "@/lib/auth/require-superadmin"
 import { isHomeLayoutFixture } from "@/lib/home-layout/dev-fixture"
@@ -25,20 +26,34 @@ type Result = { success: true; version?: string } | { success: false; error: str
 
 const FIXTURE_USER = "00000000-0000-4000-8000-0000000000aa"
 
-/** The superadmin's id, or a placeholder in the dev-only fixture mode (which
- *  has no signed-in user; see lib/home-layout/dev-fixture.ts). */
+/** The superadmin's id. In the dev-only fixture mode (lib/home-layout/dev-fixture.ts)
+ *  a request with no Supabase session gets a placeholder id; one that carries a
+ *  session is still held to requireSuperadmin(), as in production. */
 async function actor() {
-  if (isHomeLayoutFixture()) return FIXTURE_USER
+  if (isHomeLayoutFixture()) {
+    const jar = await cookies()
+    const hasSession = jar.getAll().some((c) => c.name.startsWith("sb-") && c.name.includes("auth-token"))
+    if (!hasSession) return FIXTURE_USER
+  }
   const { userId } = await requireSuperadmin()
   return userId
 }
 
+/** requireSuperadmin() throws codes; the admin sees what to do instead. */
+const AUTH_MESSAGES: Record<string, string> = {
+  auth_required: "Your session ended. Sign in again in a new tab, then try again; your edits stay on this page.",
+  not_authorized: "Only superadmins can change Home. Sign in with a superadmin account.",
+}
+
 function message(error: unknown, fallback: string) {
-  if (error instanceof Error && error.message) return error.message
-  if (error && typeof error === "object" && "message" in error && typeof error.message === "string") {
-    return error.message
-  }
-  return fallback
+  const raw =
+    error instanceof Error
+      ? error.message
+      : error && typeof error === "object" && "message" in error && typeof error.message === "string"
+        ? error.message
+        : ""
+  if (!raw) return fallback
+  return AUTH_MESSAGES[raw] ?? raw
 }
 
 /** Normalise, clean and validate a document coming from the client. */
@@ -97,7 +112,13 @@ export async function republishHomeVersionAction(id: string): Promise<Result> {
     const userId = await actor()
     const row = await getHomeLayoutVersion(id)
     if (!row || row.status === "draft") throw new Error("That version no longer exists.")
-    const doc = row.document as HomeLayoutDocument
+    // A reset (empty) version publishes as it was; any other is normalised so
+    // it lists every builtin (nearby included) like a fresh publish.
+    const raw = row.document as Partial<HomeLayoutDocument> | null
+    const doc =
+      Array.isArray(raw?.sections) && raw.sections.length === 0
+        ? resetDocument()
+        : cleanDocument(normalizeDocument(row.document))
     const when = row.published_at
       ? new Intl.DateTimeFormat("en-PH", { timeZone: "Asia/Manila", dateStyle: "medium" }).format(new Date(row.published_at))
       : "an earlier version"
@@ -120,6 +141,7 @@ export async function uploadHomeBannerImageAction(
   formData: FormData
 ): Promise<{ success: true; url: string } | { success: false; error: string }> {
   try {
+    // Always a real check, fixture or not: the upload writes to real storage.
     await requireSuperadmin()
     const file = formData.get("file")
     if (!(file instanceof File)) throw new Error("No file provided")
