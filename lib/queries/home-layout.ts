@@ -259,6 +259,8 @@ export const getHomeCafes = unstable_cache(
         )
         .eq("status", "active")
         .order("name")
+        // Names repeat (chains), so pages need a unique tie-breaker.
+        .order("id")
         .range(from, from + page - 1)
       if (error) throw error
       for (const c of data ?? []) {
