@@ -14,8 +14,6 @@ import {
   type HomeLayoutDocument,
 } from "@/lib/home-layout/document"
 import {
-  assertDraftUnchanged,
-  DRAFT_CONFLICT,
   fetchActiveTagNames,
   getHomeLayoutVersion,
   publishHomeLayout,
@@ -122,11 +120,14 @@ export async function publishHomeLayoutAction(
 export async function resetHomeLayoutAction(note: string | null, expectedUpdatedAt: string | null): Promise<Result> {
   try {
     const userId = await actor()
-    // The confirm warned about this page's draft; refuse if another tab or
-    // admin has saved a newer one since (nothing is published then).
-    await assertDraftUnchanged(expectedUpdatedAt ?? null)
-    const version = await publishHomeLayout(resetDocument(), clip(note || "Reset to default"), userId)
-    return await afterPublish(version, cleanDocument(defaultDocument()), userId, expectedUpdatedAt ?? null)
+    return await replaceDraftThenPublish(
+      cleanDocument(defaultDocument()),
+      resetDocument(),
+      clip(note || "Reset to default"),
+      userId,
+      expectedUpdatedAt ?? null,
+      "Couldn’t reset the layout"
+    )
   } catch (error) {
     return { success: false, error: message(error, "Couldn’t reset the layout") }
   }
@@ -137,55 +138,60 @@ export async function resetHomeLayoutAction(note: string | null, expectedUpdated
 export async function republishHomeVersionAction(id: string, expectedUpdatedAt: string | null): Promise<Result> {
   try {
     const userId = await actor()
-    await assertDraftUnchanged(expectedUpdatedAt ?? null)
     if (typeof id !== "string" || !/^[0-9a-f-]{36}$/i.test(id)) throw new Error("That version no longer exists.")
     const row = await getHomeLayoutVersion(id)
     if (!row || row.status === "draft") throw new Error("That version no longer exists.")
     // A reset (empty) version publishes as it was; any other is normalised so
     // it lists every builtin (nearby included) and validated like a fresh
     // publish (a tag may have been removed since). If it fails, the admin can
-    // Open as draft and fix it.
-    // A reset is no sections and no banner the app would show (isResetDocument);
-    // one with a live banner keeps it.
+    // Open as draft and fix it. A reset is no sections and no banner the app
+    // would show (isResetDocument); one with a live banner keeps it.
     const doc = isResetDocument(row.document) ? resetDocument() : await checked(row.document)
     const when = row.published_at
       ? new Intl.DateTimeFormat("en-PH", { timeZone: "Asia/Manila", dateStyle: "medium" }).format(new Date(row.published_at))
       : "an earlier version"
-    const version = await publishHomeLayout(doc, clip(`Restored from ${when}${row.note ? ` (${row.note})` : ""}`), userId)
     // An empty (reset) document opens as the default order.
-    return await afterPublish(version, cleanDocument(normalizeDocument(doc)), userId, expectedUpdatedAt ?? null)
+    return await replaceDraftThenPublish(
+      cleanDocument(normalizeDocument(doc)),
+      doc,
+      clip(`Restored from ${when}${row.note ? ` (${row.note})` : ""}`),
+      userId,
+      expectedUpdatedAt ?? null,
+      "Couldn’t publish that version"
+    )
   } catch (error) {
     return { success: false, error: message(error, "Couldn’t publish that version") }
   }
 }
 
-/** After Reset or a restore has gone live: the draft becomes `draft`, but
- *  only if it is still the one checked before publishing (a draft another tab
- *  saved meanwhile is kept). The publish already happened, so a failure here
- *  is a warning, not an error (an error would invite a retry that publishes a
- *  second version). */
-async function afterPublish(
-  version: string,
+/** Reset and restore, as Publish does it: the draft is replaced first, with
+ *  the compare-and-set check (refused, and nothing published, if another tab
+ *  or admin saved or published since this page loaded; every publish saves
+ *  the draft first, so a publish in between is caught too), then `published`
+ *  goes live. */
+async function replaceDraftThenPublish(
   draft: HomeLayoutDocument,
+  published: HomeLayoutDocument,
+  note: string,
   userId: string,
-  expectedUpdatedAt: string | null
+  expectedUpdatedAt: string | null,
+  fallback: string
 ): Promise<Result> {
-  revalidatePath("/admin/home")
+  let draftUpdatedAt: string | undefined
   try {
-    const draftUpdatedAt = await saveHomeLayoutDraft(draft, userId, expectedUpdatedAt)
+    draftUpdatedAt = await saveHomeLayoutDraft(draft, userId, expectedUpdatedAt)
+    const version = await publishHomeLayout(published, note, userId)
+    revalidatePath("/admin/home")
     return { success: true, version, draftUpdatedAt }
   } catch (error) {
-    if (error instanceof Error && error.message === DRAFT_CONFLICT) {
-      return {
-        success: true,
-        version,
-        warning: "It’s live. Someone saved the draft meanwhile, so it was kept as they left it. Reload before editing.",
-      }
-    }
+    if (!draftUpdatedAt) return { success: false, error: message(error, fallback) }
+    // The draft was replaced but nothing went live; the page reloads with
+    // that draft and the retry carries its stamp.
+    revalidatePath("/admin/home")
     return {
-      success: true,
-      version,
-      warning: `It’s live, but the draft wasn’t updated (${message(error, "unknown error")}). Reload before editing.`,
+      success: false,
+      error: `${message(error, fallback)} The draft was replaced; nothing went live. Try again.`,
+      draftUpdatedAt,
     }
   }
 }

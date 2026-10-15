@@ -199,22 +199,6 @@ export async function publishHomeLayout(document: HomeLayoutDocument, note: stri
   return data as string
 }
 
-/** Throws DRAFT_CONFLICT unless the stored draft's updated_at is still
- *  `expectedUpdatedAt` (null = no draft). For actions that replace the draft
- *  wholesale (Reset, restore), checked before anything is published. */
-export async function assertDraftUnchanged(expectedUpdatedAt: string | null) {
-  let current: string | null
-  if (isHomeLayoutFixture()) {
-    current = fixtureStore().rows.find((r) => r.status === "draft")?.updated_at ?? null
-  } else {
-    const supabase = createAdminClient()
-    const { data, error } = await supabase.from("home_layouts").select("updated_at").eq("status", "draft").maybeSingle()
-    if (error) throw error
-    current = (data?.updated_at as string | undefined) ?? null
-  }
-  if (current !== expectedUpdatedAt) throw new Error(DRAFT_CONFLICT)
-}
-
 export async function getHomeLayoutVersion(id: string): Promise<HomeLayoutRow | null> {
   if (isHomeLayoutFixture()) return fixtureStore().rows.find((r) => r.id === id) ?? null
   const supabase = createAdminClient()
