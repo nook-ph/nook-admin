@@ -242,7 +242,7 @@ export function HomeLayoutEditor({
 
   async function republish(v: HomeLayoutVersion) {
     setRestoreVersion(null)
-    const ok = await run(v.id, () => republishHomeVersionAction(v.id), "That version is live again")
+    const ok = await run(v.id, () => republishHomeVersionAction(v.id, draftStamp), "That version is live again")
     if (ok) backToNow()
   }
 
@@ -386,7 +386,7 @@ export function HomeLayoutEditor({
               unsaved={dirtyCount}
               unpublished={savedUnpublished}
               onReset={async () => {
-                const ok = await run("reset", () => resetHomeLayoutAction(null), "Home is back to the built-in layout")
+                const ok = await run("reset", () => resetHomeLayoutAction(null, draftStamp), "Home is back to the built-in layout")
                 if (ok) backToNow()
               }}
             />
@@ -422,10 +422,16 @@ export function HomeLayoutEditor({
         saving={saving}
         errorCount={showErrors || dirtyCount > 0 ? errorCount : 0}
         onFirstError={firstError}
-        onDiscard={() => {
-          setDoc(baseline)
-          setShowErrors(false)
-        }}
+        // Hidden while a banner image uploads: the upload would put the
+        // discarded banner back when it lands.
+        onDiscard={
+          uploading
+            ? undefined
+            : () => {
+                setDoc(baseline)
+                setShowErrors(false)
+              }
+        }
         savedLabel={savedLabel}
       >
         <Button variant="outline" onClick={saveDraft} disabled={saving || uploading || missingTable || dirtyCount === 0}>

@@ -13,6 +13,7 @@ import {
   type HomeLayoutDocument,
 } from "@/lib/home-layout/document"
 import {
+  assertDraftUnchanged,
   getActiveTagNames,
   getHomeLayoutVersion,
   publishHomeLayout,
@@ -106,9 +107,12 @@ export async function publishHomeLayoutAction(
 
 /** Publishes the empty document, so the app shows its built-in Home, and
  *  starts the draft over from the default order. */
-export async function resetHomeLayoutAction(note: string | null): Promise<Result> {
+export async function resetHomeLayoutAction(note: string | null, expectedUpdatedAt: string | null): Promise<Result> {
   try {
     const userId = await actor()
+    // The confirm warned about this page's draft; refuse if another tab or
+    // admin has saved a newer one since (nothing is published then).
+    await assertDraftUnchanged(expectedUpdatedAt ?? null)
     const version = await publishHomeLayout(resetDocument(), (note || "Reset to default").slice(0, LIMITS.note), userId)
     return await afterPublish(version, cleanDocument(defaultDocument()), userId)
   } catch (error) {
@@ -118,9 +122,10 @@ export async function resetHomeLayoutAction(note: string | null): Promise<Result
 
 /** Publishes an earlier version's document as a new version and loads it
  *  into the draft, so editing continues from what is live. */
-export async function republishHomeVersionAction(id: string): Promise<Result> {
+export async function republishHomeVersionAction(id: string, expectedUpdatedAt: string | null): Promise<Result> {
   try {
     const userId = await actor()
+    await assertDraftUnchanged(expectedUpdatedAt ?? null)
     if (typeof id !== "string" || !/^[0-9a-f-]{36}$/i.test(id)) throw new Error("That version no longer exists.")
     const row = await getHomeLayoutVersion(id)
     if (!row || row.status === "draft") throw new Error("That version no longer exists.")
@@ -128,9 +133,11 @@ export async function republishHomeVersionAction(id: string): Promise<Result> {
     // it lists every builtin (nearby included) and validated like a fresh
     // publish (a tag may have been removed since). If it fails, the admin can
     // Open as draft and fix it.
+    // Only a document with no sections and no banner is a reset (the app's
+    // isDefault); one with just a banner keeps it.
     const raw = row.document as Partial<HomeLayoutDocument> | null
     const doc =
-      Array.isArray(raw?.sections) && raw.sections.length === 0 ? resetDocument() : await checked(row.document)
+      Array.isArray(raw?.sections) && raw.sections.length === 0 && !raw.banner ? resetDocument() : await checked(row.document)
     const when = row.published_at
       ? new Intl.DateTimeFormat("en-PH", { timeZone: "Asia/Manila", dateStyle: "medium" }).format(new Date(row.published_at))
       : "an earlier version"
