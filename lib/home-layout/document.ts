@@ -412,13 +412,18 @@ const SEARCH_SHELVES = ["nearby", "newest", "trending", "top_rated", "specialty"
 /** Why a banner's shelf link would land on "This shelf isn't on Nook right
  *  now" for this document, or null when it opens a shelf (or isn't a shelf
  *  link). A warning only: the shelf may be added before publishing. */
-export function shelfLinkProblem(doc: HomeLayoutDocument): string | null {
+export function shelfLinkProblem(
+  doc: HomeLayoutDocument,
+  /** Cafés the shelf's page would list (preview.ts shelfPageCafeCount); none = unchecked. */
+  cafeCount?: (s: HomeSection) => number
+): string | null {
   const id = shelfLinkTarget(doc.banner?.link)
   if (id == null || SEARCH_SHELVES.includes(id)) return null
   const s = doc.sections.find((x) => x.id === id)
   if (!s) return `The link opens shelf “${id}”, which isn’t in this layout, so the app shows “This shelf isn’t on Nook right now”.`
-  if (s.type === "custom") return null
-  if (s.id === "featured" && (s.cafe_ids?.length ?? 0) > 0) return null
+  const empty = `The link opens “${sectionTitle(s)}”, which has no published cafés yet, so the app shows “This shelf isn’t on Nook right now”.`
+  if (s.type === "custom") return cafeCount && cafeCount(s) === 0 ? empty : null
+  if (s.id === "featured" && (s.cafe_ids?.length ?? 0) > 0) return cafeCount && cafeCount(s) === 0 ? empty : null
   return `The link opens “${sectionTitle(s)}”, which has no page of its own${s.id === "featured" ? " while House picks are automatic" : ""}, so the app shows “This shelf isn’t on Nook right now”.`
 }
 

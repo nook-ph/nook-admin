@@ -33,7 +33,7 @@ import { TONES } from "@/components/admin/table-kit"
 import { CafePicker } from "@/components/admin/home/cafe-picker"
 import { HomeSwitch } from "@/components/admin/home/home-switch"
 import { ScheduleChip, ScheduleFields } from "@/components/admin/home/schedule-fields"
-import { NEARBY_MAX_POSITION, NEARBY_WARNING } from "@/lib/home-layout/changes"
+import { NEARBY_MAX_POSITION, NEARBY_WARNING, nearbyShownPosition } from "@/lib/home-layout/changes"
 import {
   builtinInfo,
   describeSchedule,
@@ -122,6 +122,8 @@ export function SectionList({
   }
 
   const nearbyIndex = sections.findIndex((s) => s.id === "nearby")
+  // Its place on phones: rows that are off or out of schedule take none.
+  const nearbyShown = nearbyShownPosition(sections, now)
 
   return (
     <>
@@ -261,12 +263,12 @@ export function SectionList({
         })}
       </ol>
 
-      {!pinTop && nearbyIndex >= NEARBY_MAX_POSITION && (
+      {!pinTop && nearbyShown != null && nearbyShown > NEARBY_MAX_POSITION && (
         <div className={cn("flex flex-wrap items-center gap-x-3 gap-y-2 rounded-lg px-3 py-2.5 text-[13px]", TONES.warning)} role="status">
           <span className="flex min-w-0 flex-1 items-start gap-1.5">
             <WarningCircleIcon className="mt-0.5 size-4 shrink-0" aria-hidden />
             <span className="min-w-0">
-              Near you is at #{nearbyIndex + 1}. {NEARBY_WARNING}
+              Near you is at #{nearbyShown}. {NEARBY_WARNING}
             </span>
           </span>
           <Button type="button" variant="outline" size="sm" className="bg-background max-sm:h-11" onClick={() => move(nearbyIndex, 1)}>

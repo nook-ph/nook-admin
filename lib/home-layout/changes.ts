@@ -17,6 +17,15 @@ import {
 export const NEARBY_MAX_POSITION = 3
 export const NEARBY_WARNING = "Near you is the most-used shelf; moving it down hides it for most people."
 
+/** Where Near you lands among the shelves phones show at `at` (turned-off and
+ *  out-of-schedule rows take no place), 1-based; null when it isn't shown.
+ *  Without a time only turned-off rows are left out. */
+export function nearbyShownPosition(sections: HomeSection[], at: Date | null): number | null {
+  const shown = sections.filter((s) => s.visible && (!at || isScheduleActive(s.schedule, at)))
+  const i = shown.findIndex((s) => s.id === "nearby")
+  return i < 0 ? null : i + 1
+}
+
 function shortDate(iso: string) {
   if (Number.isNaN(Date.parse(iso))) return iso
   return new Intl.DateTimeFormat("en-PH", { timeZone: "Asia/Manila", month: "short", day: "numeric" }).format(new Date(iso))
@@ -87,14 +96,19 @@ function fillOf(s: HomeSection) {
 }
 
 /** Warnings that hold for a document on its own, whatever is live. */
-export function layoutWarnings(doc: HomeLayoutDocument, now: Date): string[] {
+export function layoutWarnings(
+  doc: HomeLayoutDocument,
+  now: Date,
+  /** Cafés a shelf's own page would list, for the banner's shelf link check. */
+  cafeCount?: (s: HomeSection) => number
+): string[] {
   const warnings: string[] = []
   const b = doc.banner
   if (b && b.enabled !== false && typeof b.title === "string" && b.title.trim()) {
     const st = scheduleStatus(b.schedule, now)
     if (st?.kind === "ended") warnings.push(`Banner: its schedule ended ${st.date}, so it won’t show.`)
     if (st?.kind === "upcoming") warnings.push(`Banner: starts ${st.date}; hidden until then.`)
-    const link = shelfLinkProblem(doc)
+    const link = shelfLinkProblem(doc, cafeCount)
     if (link) warnings.push(`Banner: ${link}`)
   }
   for (const s of doc.sections) {
@@ -104,14 +118,19 @@ export function layoutWarnings(doc: HomeLayoutDocument, now: Date): string[] {
     if (st?.kind === "upcoming") warnings.push(`${sectionTitle(s)}: starts ${st.date}; hidden until then.`)
   }
   // With pin_top (the default) the app keeps Near you in the top three itself.
-  const nearby = doc.sections.findIndex((s) => s.id === "nearby")
-  if (doc.pin_top === false && nearby >= NEARBY_MAX_POSITION) warnings.push(`Near you is at #${nearby + 1}. ${NEARBY_WARNING}`)
+  const nearby = nearbyShownPosition(doc.sections, now)
+  if (doc.pin_top === false && nearby != null && nearby > NEARBY_MAX_POSITION) warnings.push(`Near you is at #${nearby}. ${NEARBY_WARNING}`)
   return warnings
 }
 
 /** What publishing `draft` changes on phones, compared with `live` (the
  *  built-in order when nothing is live). */
-export function layoutChanges(live: HomeLayoutDocument, draft: HomeLayoutDocument, now: Date): LayoutChanges {
+export function layoutChanges(
+  live: HomeLayoutDocument,
+  draft: HomeLayoutDocument,
+  now: Date,
+  cafeCount?: (s: HomeSection) => number
+): LayoutChanges {
   const a = cleanDocument(live)
   const b = cleanDocument(draft)
   const changes: string[] = []
@@ -176,5 +195,5 @@ export function layoutChanges(live: HomeLayoutDocument, draft: HomeLayoutDocumen
     changes.push(b.respect_purpose ? "Onboarding answers can lead again" : "Onboarding answers no longer move a shelf to the top")
   }
 
-  return { changes, warnings: layoutWarnings(b, now) }
+  return { changes, warnings: layoutWarnings(b, now, cafeCount) }
 }

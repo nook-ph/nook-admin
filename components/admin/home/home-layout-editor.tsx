@@ -39,7 +39,9 @@ import {
   shelfLinkProblem,
   validateDocument,
   type HomeLayoutDocument,
+  type HomeSection,
 } from "@/lib/home-layout/document"
+import { shelfPageCafeCount } from "@/lib/home-layout/preview"
 import type { HomeCafe, HomeLayoutVersion } from "@/lib/queries/home-layout"
 import { cn } from "@/lib/utils"
 
@@ -131,7 +133,8 @@ export function HomeLayoutEditor({
     () => (published ? normalizeDocument(published.document) : defaultDocument()),
     [published]
   )
-  const changes = React.useMemo(() => layoutChanges(liveDoc, doc, now ?? EPOCH), [liveDoc, doc, now])
+  const cafeCount = React.useCallback((s: HomeSection) => shelfPageCafeCount(s, cafes), [cafes])
+  const changes = React.useMemo(() => layoutChanges(liveDoc, doc, now ?? EPOCH, cafeCount), [liveDoc, doc, now, cafeCount])
   const savedUnpublished = React.useMemo(
     () => layoutChanges(liveDoc, baseline, EPOCH).changes.length,
     [liveDoc, baseline]
@@ -328,7 +331,7 @@ export function HomeLayoutEditor({
               now={now}
               onPreviewAt={previewAt}
               onUploadingChange={setUploading}
-              linkWarning={doc.banner?.enabled ? shelfLinkProblem(doc) : null}
+              linkWarning={doc.banner?.enabled ? shelfLinkProblem(doc, cafeCount) : null}
             />
           </FormSection>
 
