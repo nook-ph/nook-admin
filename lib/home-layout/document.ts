@@ -412,10 +412,14 @@ export function bannerId(b: Pick<Banner, "title" | "body" | "image_url" | "link"
 }
 
 /** HOME_LAYOUT.md › Shelf links: the section id a `nook://shelf/<id>` link
- *  opens, or null when the link is not a shelf link. */
+ *  opens, "" for a shelf link the app can't route (no id, or more path after
+ *  it), or null when the link is not a shelf link. */
 export function shelfLinkTarget(link: string | null | undefined): string | null {
-  const m = /^nook:\/\/shelf\/([^/?#]+)\/?(?:[?#].*)?$/i.exec((link ?? "").trim())
-  if (!m) return null
+  const v = (link ?? "").trim()
+  if (!/^nook:\/\/shelf(?:[/?#]|$)/i.test(v)) return null
+  const m = /^nook:\/\/shelf\/([^/?#]+)\/?(?:[?#].*)?$/i.exec(v)
+  // A shelf link with no id or extra path parts matches no app route.
+  if (!m) return ""
   try {
     return decodeURIComponent(m[1])
   } catch {
@@ -436,6 +440,7 @@ export function shelfLinkProblem(
 ): string | null {
   const id = shelfLinkTarget(doc.banner?.link)
   if (id == null || SEARCH_SHELVES.includes(id)) return null
+  if (id === "") return "Write it as nook://shelf/<shelf id>, with nothing after the id; this link opens nothing in the app."
   const s = doc.sections.find((x) => x.id === id)
   if (!s) return `The link opens shelf “${id}”, which isn’t in this layout, so the app shows “This shelf isn’t on Nook right now”.`
   const empty = `The link opens “${sectionTitle(s)}”, which has no published cafés yet, so the app shows “This shelf isn’t on Nook right now”.`

@@ -124,6 +124,9 @@ export function layoutWarnings(doc: HomeLayoutDocument, now: Date, ctx: WarningC
     const st = scheduleStatus(s.schedule, now)
     if (st?.kind === "ended") warnings.push(`${sectionTitle(s)}: its schedule ended ${st.date}, so it won’t show.`)
     if (st?.kind === "upcoming") warnings.push(`${sectionTitle(s)}: starts ${st.date}; hidden until then.`)
+    if (s.type === "builtin" && s.id === "featured" && (s.cafe_ids?.length ?? 0) > 0 && cafeCount && cafeCount(s) === 0) {
+      warnings.push(`${sectionTitle(s)}: none of the picked cafés is published, so the app shows the automatic picks.`)
+    }
     if (s.type === "custom" && cafeCount) {
       const n = Math.min(cafeCount(s), s.source === "rule" ? s.rule?.limit ?? LIMITS.ruleLimitDefault : LIMITS.cafeIdsPerSection)
       if (n < LIMITS.minShelfCafes) {
