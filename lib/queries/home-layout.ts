@@ -102,7 +102,7 @@ export const DRAFT_CONFLICT =
  *  editor loaded it, null when there was none) the write only happens if the
  *  draft is still that one, so two tabs never silently overwrite each other.
  *  Every action passes it (Save, Publish, and the draft write after Reset and
- *  Publish this version again); only the internal 23505 retry goes without. */
+ *  Publish this version again); a call without it writes unconditionally. */
 export async function saveHomeLayoutDraft(
   document: HomeLayoutDocument,
   userId: string,
@@ -159,7 +159,7 @@ export async function saveHomeLayoutDraft(
     .select("updated_at")
     .single()
   // 23505: another tab created the draft a moment ago. A checked save is a
-  // conflict; an unchecked one (Reset, restore) writes to that draft.
+  // conflict; an unchecked one writes to that draft.
   if (error?.code === "23505") {
     if (checkConflict) throw new Error(DRAFT_CONFLICT)
     return saveHomeLayoutDraft(document, userId)
@@ -291,10 +291,3 @@ export async function fetchActiveTagNames(): Promise<string[]> {
   if (error) throw error
   return (data ?? []).map((t) => t.name as string)
 }
-
-/** The same, cached, for the editor's tag list. */
-export const getActiveTagNames = unstable_cache(
-  fetchActiveTagNames,
-  ["admin-home-tag-names"],
-  { revalidate: 60 * 10, tags: ["admin-tags"] }
-)
