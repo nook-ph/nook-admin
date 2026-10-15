@@ -92,9 +92,20 @@ function shelfCafes(s: HomeSection, cafes: HomeCafe[], byId: Map<string, HomeCaf
       return { cafes: [], personal: true }
     case "nearby":
       return { cafes: sortCafes(cafes, "nearby").slice(0, SHELF_SIZE), usesLocation: true }
-    case "featured":
+    case "featured": {
       if (s.cafe_ids && s.cafe_ids.length > 0) return { cafes: pickIds(s.cafe_ids, byId) }
-      return { cafes: sortCafes(cafes.filter((c) => c.is_featured), "top_rated").slice(0, SHELF_SIZE) }
+      // As the app (nook-mobile HomeBloc._buildFeatured): the featured cafés
+      // among the Newest, Crowd favorites, Highest rated and Near you lists,
+      // in that order, each once.
+      const seen = new Set<string>()
+      const pool = [
+        ...sortCafes(cafes, "newest").slice(0, SHELF_SIZE),
+        ...sortCafes(cafes, "trending").slice(0, SHELF_SIZE),
+        ...sortCafes(cafes, "top_rated").slice(0, SHELF_SIZE),
+        ...sortCafes(cafes, "nearby").slice(0, SHELF_SIZE),
+      ]
+      return { cafes: pool.filter((c) => c.is_featured && !seen.has(c.id) && !!seen.add(c.id)), usesLocation: true }
+    }
     case "specialty":
       return { cafes: sortCafes(withTags(cafes, ["Specialty Coffee"]), "nearby").slice(0, SHELF_SIZE), usesLocation: true }
     case "local_beans":
@@ -108,6 +119,16 @@ function shelfCafes(s: HomeSection, cafes: HomeCafe[], byId: Map<string, HomeCaf
     case "top_rated":
       return { cafes: sortCafes(cafes, "top_rated").slice(0, SHELF_SIZE) }
   }
+}
+
+/** How many cafés a shelf's own page (nook://shelf/<id>) would list from
+ *  this catalog: the app shows "This shelf isn't on Nook right now" at 0. */
+export function shelfPageCafeCount(s: HomeSection, cafes: HomeCafe[]): number {
+  const byId = new Map(cafes.map((c) => [c.id, c]))
+  if (s.type === "custom" && s.source === "rule") {
+    return s.rule?.tag ? withTags(cafes, [s.rule.tag]).length : 0
+  }
+  return pickIds(s.cafe_ids ?? [], byId).length
 }
 
 /** HOME_LAYOUT.md › pin_top, as nook-mobile pinPersonalShelves: with pin_top
