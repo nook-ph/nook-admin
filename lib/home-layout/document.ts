@@ -1,0 +1,651 @@
+// The Home layout document (nook-supabase docs/HOME_LAYOUT.md, schema 1).
+// Pure: shared by the server actions, the editor and the phone preview.
+
+export const HOME_LAYOUT_SCHEMA = 1
+
+export const LIMITS = {
+  sections: 20,
+  customShelves: 12,
+  cafeIdsPerSection: 30,
+  ruleLimitMin: 3,
+  ruleLimitMax: 20,
+  ruleLimitDefault: 10,
+  /** A shelf with fewer cafes than this is hidden on the phone. */
+  minShelfCafes: 3,
+  title: 60,
+  bannerTitle: 80,
+  bannerBody: 160,
+  ctaLabel: 30,
+  note: 200,
+} as const
+
+/** Custom shelves that fit next to the nine builtins the editor always writes,
+ *  given the app reads at most LIMITS.sections sections. */
+export const MAX_CUSTOM_SHELVES = Math.min(LIMITS.customShelves, LIMITS.sections - 9)
+
+export type BuiltinId =
+  | "your_places"
+  | "nearby"
+  | "featured"
+  | "specialty"
+  | "local_beans"
+  | "newest"
+  | "laptop_friendly"
+  | "trending"
+  | "top_rated"
+
+/** The app's built-in order and titles (mobile HomeRail + Your places). */
+export const BUILTINS: { id: BuiltinId; title: string; about: string }[] = [
+  { id: "your_places", title: "Your places", about: "The person’s saved and recent cafés" },
+  { id: "nearby", title: "Near you", about: "Closest first; needs location" },
+  { id: "featured", title: "House picks", about: "Featured cafés, or the ones you pick" },
+  { id: "specialty", title: "Specialty coffee near you", about: "Tag Specialty Coffee, closest first; needs location" },
+  { id: "local_beans", title: "Local beans", about: "Tag Philippine Beans" },
+  { id: "newest", title: "Fresh on Nook", about: "Newest listings" },
+  { id: "laptop_friendly", title: "Laptop-friendly", about: "Tags Free WiFi and Power Outlets" },
+  { id: "trending", title: "Crowd favorites", about: "Rating weighted by review count" },
+  { id: "top_rated", title: "Highest rated", about: "Highest rating first" },
+]
+
+export const BUILTIN_IDS = BUILTINS.map((b) => b.id)
+
+export function builtinInfo(id: string) {
+  return BUILTINS.find((b) => b.id === id)
+}
+
+export type RuleSort = "top_rated" | "trending" | "newest" | "nearby"
+
+export const RULE_SORTS: { value: RuleSort; label: string }[] = [
+  { value: "top_rated", label: "Highest rated" },
+  { value: "trending", label: "Crowd favorites" },
+  { value: "newest", label: "Newest" },
+  { value: "nearby", label: "Closest first" },
+]
+
+export type Schedule = {
+  starts_at?: string | null
+  ends_at?: string | null
+  /** 1 = Monday … 7 = Sunday. Empty or null = every day. */
+  days?: number[] | null
+  hours?: { from: string; to: string } | null
+}
+
+export type BuiltinSection = {
+  id: BuiltinId
+  type: "builtin"
+  visible: boolean
+  title?: string | null
+  /** featured only: hand-picked House picks. Empty = automatic. */
+  cafe_ids?: string[]
+  schedule?: Schedule | null
+}
+
+export type CustomSection = {
+  id: `custom:${string}`
+  type: "custom"
+  visible: boolean
+  title: string
+  source: "picked" | "rule"
+  cafe_ids?: string[]
+  rule?: { tag: string | null; sort: RuleSort; limit: number }
+  schedule?: Schedule | null
+}
+
+export type HomeSection = BuiltinSection | CustomSection
+
+export type Banner = {
+  /** HOME_LAYOUT.md › banner.id: what the app keys a dismissal on. Derived
+   *  from the banner's content by cleanDocument (bannerId), so it is the same
+   *  across publishes until the title, text, image or link changes. */
+  id?: string
+  enabled: boolean
+  title: string
+  body?: string | null
+  image_url?: string | null
+  cta_label?: string | null
+  link?: string | null
+  schedule?: Schedule | null
+}
+
+export type HomeLayoutDocument = {
+  schema: 1
+  respect_purpose: boolean
+  /** HOME_LAYOUT.md › pin_top: absent = true (Your places and Near you stay in
+   *  the top three). Only `false` is written. */
+  pin_top?: false
+  banner: Banner | null
+  sections: HomeSection[]
+}
+
+export function defaultSections(): HomeSection[] {
+  return BUILTINS.map((b) => ({
+    id: b.id,
+    type: "builtin" as const,
+    visible: true,
+    title: b.title,
+  }))
+}
+
+/** What a new draft starts from: the built-in order with its default titles. */
+export function defaultDocument(): HomeLayoutDocument {
+  return { schema: 1, respect_purpose: true, banner: null, sections: defaultSections() }
+}
+
+/** Whether a stored document is the app's built-in Home (nook-mobile
+ *  HomeLayout: no sections, and no banner it would show — a missing one, one
+ *  turned off, or one without a title). */
+export function isResetDocument(raw: unknown): boolean {
+  if (!raw || typeof raw !== "object") return false
+  const d = raw as { sections?: unknown; banner?: unknown }
+  if (!Array.isArray(d.sections) || d.sections.length > 0) return false
+  const b = d.banner as { enabled?: unknown; title?: unknown } | null | undefined
+  return !b || typeof b !== "object" || b.enabled === false || typeof b.title !== "string" || !b.title.trim()
+}
+
+/** What "Reset to default" publishes: no sections and no banner, so the app
+ *  uses its built-in Home (HOME_LAYOUT.md › Storage). */
+export function resetDocument(): HomeLayoutDocument {
+  return { schema: 1, respect_purpose: true, banner: null, sections: [] }
+}
+
+export function emptyBanner(): Banner {
+  return { enabled: true, title: "", body: "", image_url: null, cta_label: "", link: "", schedule: null }
+}
+
+export function newCustomSection(): CustomSection {
+  const rand =
+    typeof crypto !== "undefined" && "randomUUID" in crypto
+      ? crypto.randomUUID().slice(0, 8)
+      : Math.random().toString(16).slice(2, 10)
+  return {
+    id: `custom:${rand}`,
+    type: "custom",
+    visible: true,
+    title: "",
+    source: "picked",
+    cafe_ids: [],
+    rule: { tag: null, sort: "top_rated", limit: LIMITS.ruleLimitDefault },
+  }
+}
+
+export function sectionTitle(section: HomeSection) {
+  if (section.title && section.title.trim()) return section.title.trim()
+  if (section.type === "builtin") return builtinInfo(section.id)?.title ?? section.id
+  return "Untitled shelf"
+}
+
+// ---------------------------------------------------------------------------
+// Normalising: the editor reads documents written by older editors, by hand,
+// or the empty one "Reset to default" publishes. A document with no sections
+// means "the app's default", so it opens as the default order.
+
+export function normalizeDocument(input: unknown): HomeLayoutDocument {
+  const doc = (input && typeof input === "object" ? input : {}) as Record<string, unknown>
+  // As the app: a repeated id keeps the first copy the phone can read (the
+  // app skips unreadable entries before it dedupes), else the first copy.
+  const all = Array.isArray(doc.sections) ? doc.sections.filter(isSection).map(normalizeSection) : []
+  const chosen = new Map<string, HomeSection>()
+  for (const s of all) {
+    const prev = chosen.get(s.id)
+    if (!prev || (!readableOnPhone(prev) && readableOnPhone(s))) chosen.set(s.id, s)
+  }
+  const sections = all.filter((s) => chosen.get(s.id) === s)
+  const listed = sections.length > 0 ? sections : defaultSections()
+  return {
+    schema: 1,
+    respect_purpose: doc.respect_purpose !== false,
+    ...(doc.pin_top === false ? { pin_top: false as const } : {}),
+    banner: normalizeBanner(doc.banner),
+    sections: withAllBuiltins(listed),
+  }
+}
+
+// Field types are made safe for every reader (editor, preview, change list);
+// values stay as they were so validateDocument can still flag bad ones.
+const text = (v: unknown) => (typeof v === "string" ? v : null)
+function schedule(v: unknown): Schedule | null {
+  if (!v || typeof v !== "object" || Array.isArray(v)) return null
+  const s = v as Record<string, unknown>
+  const h = s.hours && typeof s.hours === "object" ? (s.hours as Record<string, unknown>) : null
+  return {
+    starts_at: text(s.starts_at),
+    ends_at: text(s.ends_at),
+    days: Array.isArray(s.days) ? (s.days.filter((d) => typeof d === "number") as number[]) : null,
+    hours: h ? { from: text(h.from) ?? "", to: text(h.to) ?? "" } : null,
+  }
+}
+
+function normalizeBanner(v: unknown): Banner | null {
+  if (!v || typeof v !== "object") return null
+  const b = v as Record<string, unknown>
+  return {
+    enabled: b.enabled !== false,
+    title: text(b.title) ?? "",
+    body: text(b.body),
+    image_url: text(b.image_url),
+    cta_label: text(b.cta_label),
+    link: text(b.link),
+    schedule: schedule(b.schedule),
+  }
+}
+
+/** Whether nook-mobile HomeSection.tryParse keeps this entry. */
+function readableOnPhone(s: HomeSection) {
+  if (s.type === "builtin") return true
+  if (!s.title.trim()) return false
+  return s.source === "picked" || (s.source === "rule" && !!s.rule?.tag)
+}
+
+function normalizeSection(s: HomeSection): HomeSection {
+  const raw = s as unknown as Record<string, unknown>
+  // Trimmed and de-duplicated, as the app reads them.
+  const ids = Array.isArray(raw.cafe_ids)
+    ? [...new Set(raw.cafe_ids.filter((x): x is string => typeof x === "string").map((x) => x.trim()).filter(Boolean))]
+    : undefined
+  if (sectionType(raw) === "builtin") {
+    // Only House picks takes cafe_ids (the app and cleanDocument ignore others).
+    return {
+      id: s.id as BuiltinId,
+      type: "builtin",
+      visible: raw.visible !== false,
+      title: text(raw.title),
+      ...(ids && s.id === "featured" ? { cafe_ids: ids } : {}),
+      ...(raw.schedule ? { schedule: schedule(raw.schedule) } : {}),
+    }
+  }
+  const rule = raw.rule && typeof raw.rule === "object" ? (raw.rule as Record<string, unknown>) : null
+  return {
+    id: s.id as CustomSection["id"],
+    type: "custom",
+    visible: raw.visible !== false,
+    title: text(raw.title) ?? "",
+    source: raw.source as CustomSection["source"],
+    ...(ids ? { cafe_ids: ids } : {}),
+    ...(rule
+      ? {
+          rule: {
+            tag: text(rule.tag),
+            sort: rule.sort as RuleSort,
+            limit: typeof rule.limit === "number" ? rule.limit : LIMITS.ruleLimitDefault,
+          },
+        }
+      : {}),
+    ...(raw.schedule ? { schedule: schedule(raw.schedule) } : {}),
+  }
+}
+
+/** Builtins missing from the list are appended in default order, as the app
+ *  does, so the editor shows every shelf the phone will show and every saved
+ *  document lists all nine (above all `nearby`: the app follows array order,
+ *  so a layout that drops it pushes "Near you" to the bottom of Home). */
+export function withAllBuiltins(sections: HomeSection[]): HomeSection[] {
+  const missing = BUILTINS.filter((b) => !sections.some((s) => s.id === b.id)).map(
+    (b): HomeSection => ({ id: b.id, type: "builtin", visible: true, title: b.title })
+  )
+  return missing.length > 0 ? [...sections, ...missing] : sections
+}
+
+/** As nook-mobile HomeSection.tryParse: a missing `type` means custom for a
+ *  `custom:` id and builtin otherwise. Normalised entries carry their type. */
+function isSection(s: unknown): s is HomeSection {
+  if (!s || typeof s !== "object") return false
+  const v = s as { id?: unknown; type?: unknown }
+  if (typeof v.id !== "string") return false
+  const type = sectionType(v)
+  if (type === "builtin") return (BUILTIN_IDS as string[]).includes(v.id)
+  // The app takes type "custom" with any id (custom: prefixed or not).
+  return type === "custom" && !(BUILTIN_IDS as string[]).includes(v.id)
+}
+
+function sectionType(v: { id?: unknown; type?: unknown }) {
+  return v.type ?? (typeof v.id === "string" && v.id.startsWith("custom:") ? "custom" : "builtin")
+}
+
+/** Unique days in order; null for none or all seven (every day). */
+function dedupeDays(days: number[] | null | undefined) {
+  if (!Array.isArray(days)) return null
+  const unique = [...new Set(days)].sort((a, b) => a - b)
+  return unique.length > 0 && unique.length < 7 ? unique : null
+}
+
+/** The document as saved: trims text, drops empty optional fields so the
+ *  phone reads null/absent rather than "". */
+export function cleanDocument(doc: HomeLayoutDocument): HomeLayoutDocument {
+  // Documents also arrive from the client and from old rows, so nothing here
+  // assumes a field has the type the editor gives it.
+  const str = (v: unknown) => (typeof v === "string" ? v.trim() : "")
+  const clean = (v: unknown) => str(v) || null
+  // A valid instant is written in Manila time, as the editor writes it
+  // (YYYY-MM-DDTHH:MM:00+08:00), keeping any seconds so the instant is
+  // unchanged. Anything else is kept for validation to flag.
+  const instant = (v: unknown) => {
+    const t = str(v)
+    if (!t) return null
+    const ms = Date.parse(t)
+    if (!ISO_INSTANT.test(t) || Number.isNaN(ms)) return t
+    const wall = new Date(ms + MANILA_OFFSET_MS).toISOString() // ...THH:MM:SS.mmmZ
+    return `${wall.slice(0, ms % 1000 === 0 ? 19 : 23)}+08:00`
+  }
+  const cleanSchedule = (s: Schedule | null | undefined): Schedule | null => {
+    if (!s || typeof s !== "object") return null
+    const out: Schedule = {
+      starts_at: instant(s.starts_at),
+      ends_at: instant(s.ends_at),
+      days: dedupeDays(s.days),
+      hours: s.hours && s.hours.from && s.hours.to ? s.hours : null,
+    }
+    return out.starts_at || out.ends_at || out.days || out.hours ? out : null
+  }
+  // A banner turned off with nothing in it is no banner (null); an empty
+  // schedule is left out, as on sections.
+  const cleanBanner = (b: Banner | null | undefined): Banner | null => {
+    if (!b || typeof b !== "object") return null
+    const out = {
+      id: bannerId(b),
+      enabled: b.enabled !== false,
+      title: str(b.title),
+      body: clean(b.body),
+      image_url: clean(b.image_url),
+      cta_label: clean(b.cta_label),
+      link: clean(b.link),
+    }
+    const sched = cleanSchedule(b.schedule)
+    if (!out.enabled && !out.title && !out.body && !out.image_url && !out.cta_label && !out.link && !sched) return null
+    return sched ? { ...out, schedule: sched } : out
+  }
+  return {
+    schema: 1,
+    respect_purpose: doc.respect_purpose !== false,
+    ...(doc.pin_top === false ? { pin_top: false as const } : {}),
+    banner: cleanBanner(doc.banner),
+    // Never drop a builtin (nearby above all); an empty list stays empty,
+    // which is "Reset to default".
+    sections: (doc.sections.length > 0 ? withAllBuiltins(doc.sections) : []).map((s): HomeSection => {
+      const schedule = cleanSchedule(s.schedule)
+      if (s.type === "builtin") {
+        const def = builtinInfo(s.id)?.title
+        const title = clean(s.title)
+        return {
+          id: s.id,
+          type: "builtin",
+          visible: s.visible !== false,
+          // The default title is left out, so a later default rename reaches it.
+          ...(title && title !== def ? { title } : {}),
+          ...(s.id === "featured" && s.cafe_ids && s.cafe_ids.length > 0 ? { cafe_ids: s.cafe_ids } : {}),
+          ...(schedule ? { schedule } : {}),
+        }
+      }
+      return {
+        id: s.id,
+        type: "custom",
+        visible: s.visible !== false,
+        title: str(s.title),
+        source: s.source,
+        ...(s.source === "picked"
+          ? { cafe_ids: s.cafe_ids ?? [] }
+          : { rule: { tag: s.rule?.tag ?? null, sort: s.rule?.sort ?? "top_rated", limit: s.rule?.limit ?? LIMITS.ruleLimitDefault } }),
+        ...(schedule ? { schedule } : {}),
+      }
+    }),
+  }
+}
+
+/** HOME_LAYOUT.md › banner.id: "banner-" + 16 hex digits hashed from the
+ *  trimmed title, text, image and link. A re-publish, a restore or a schedule
+ *  or on/off change keeps it (so a dismissed banner stays dismissed); changing
+ *  what the banner says, shows or opens makes a new one. The button label is
+ *  left out on purpose: rewording it is not a new banner. */
+export function bannerId(b: Pick<Banner, "title" | "body" | "image_url" | "link">): string {
+  const str = (v: unknown) => (typeof v === "string" ? v.trim() : "")
+  const input = [str(b.title), str(b.body), str(b.image_url), str(b.link)].join("\u0000")
+  // Two 32-bit FNV-1a hashes with different seeds: pure and synchronous, so
+  // the editor and the server always agree on it.
+  const fnv = (seed: number) => {
+    let h = seed >>> 0
+    for (let i = 0; i < input.length; i++) {
+      h ^= input.charCodeAt(i)
+      h = Math.imul(h, 0x01000193) >>> 0
+    }
+    return h.toString(16).padStart(8, "0")
+  }
+  return `banner-${fnv(0x811c9dc5)}${fnv(0x5bd1e995)}`
+}
+
+/** HOME_LAYOUT.md › Shelf links: the section id a `nook://shelf/<id>` link
+ *  opens, "" for a shelf link the app can't route (no id, or more path after
+ *  it), or null when the link is not a shelf link. */
+export function shelfLinkTarget(link: string | null | undefined): string | null {
+  const v = (link ?? "").trim()
+  if (!/^nook:\/\/shelf(?:[/?#]|$)/i.test(v)) return null
+  const m = /^nook:\/\/shelf\/([^/?#]+)\/?(?:[?#].*)?$/i.exec(v)
+  // A shelf link with no id or extra path parts matches no app route.
+  if (!m) return ""
+  try {
+    return decodeURIComponent(m[1])
+  } catch {
+    return m[1]
+  }
+}
+
+/** Shelves whose full list is a search: the app opens that search instead. */
+const SEARCH_SHELVES = ["nearby", "newest", "trending", "top_rated", "specialty", "local_beans"]
+
+/** Why a banner's shelf link would land on "This shelf isn't on Nook right
+ *  now" for this document, or null when it opens a shelf (or isn't a shelf
+ *  link). A warning only: the shelf may be added before publishing. */
+export function shelfLinkProblem(
+  doc: HomeLayoutDocument,
+  /** Cafés the shelf's page would list (preview.ts shelfPageCafeCount); none = unchecked. */
+  cafeCount?: (s: HomeSection) => number
+): string | null {
+  const id = shelfLinkTarget(doc.banner?.link)
+  if (id == null || SEARCH_SHELVES.includes(id)) return null
+  if (id === "") return "Write it as nook://shelf/<shelf id>, with nothing after the id; this link opens nothing in the app."
+  const s = doc.sections.find((x) => x.id === id)
+  if (!s) return `The link opens shelf “${id}”, which isn’t in this layout, so the app shows “This shelf isn’t on Nook right now”.`
+  const empty = `The link opens “${sectionTitle(s)}”, which has no published cafés yet, so the app shows “This shelf isn’t on Nook right now”.`
+  if (s.type === "custom") return cafeCount && cafeCount(s) === 0 ? empty : null
+  if (s.id === "featured" && (s.cafe_ids?.length ?? 0) > 0) return cafeCount && cafeCount(s) === 0 ? empty : null
+  return `The link opens “${sectionTitle(s)}”, which has no page of its own${s.id === "featured" ? " while House picks are automatic" : ""}, so the app shows “This shelf isn’t on Nook right now”.`
+}
+
+// ---------------------------------------------------------------------------
+// Validation (HOME_LAYOUT.md › limits). Keys are field paths the editor
+// shows errors under: "sections.<id>.title", "banner.link", ...
+
+export type LayoutErrors = Record<string, string>
+
+const HHMM = /^([01]\d|2[0-3]):[0-5]\d$/
+/** An ISO timestamp with an explicit offset, so every reader gets the same instant. */
+const ISO_INSTANT = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d+)?)?(Z|[+-]\d{2}:\d{2})$/
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
+export function validateLink(link: string | null | undefined): string | null {
+  const v = (link ?? "").trim()
+  if (!v) return null
+  if (/^nook:\/\/\S+$/.test(v)) return null
+  try {
+    const u = new URL(v)
+    if (u.protocol === "https:" && u.hostname.includes(".")) return null
+  } catch {
+    /* fall through */
+  }
+  return "Use a nook:// link or an https:// address."
+}
+
+function validateSchedule(prefix: string, s: Schedule | null | undefined, errors: LayoutErrors) {
+  if (!s) return
+  const bad = (v: unknown) => !!v && (typeof v !== "string" || !ISO_INSTANT.test(v) || Number.isNaN(Date.parse(v)))
+  if (bad(s.starts_at)) errors[`${prefix}.starts_at`] = "Not a valid date."
+  if (bad(s.ends_at)) errors[`${prefix}.ends_at`] = "Not a valid date."
+  if (s.starts_at && s.ends_at && Date.parse(s.ends_at) <= Date.parse(s.starts_at)) {
+    errors[`${prefix}.ends_at`] = "Ends before it starts."
+  }
+  if (s.days && (!Array.isArray(s.days) || s.days.some((d) => !Number.isInteger(d) || d < 1 || d > 7))) {
+    errors[`${prefix}.days`] = "Days run 1 (Monday) to 7 (Sunday)."
+  }
+  if (s.hours) {
+    const { from, to } = s.hours
+    if ((from && !to) || (!from && to)) errors[`${prefix}.hours`] = "Set both times, or neither."
+    else if (from && to && (typeof from !== "string" || typeof to !== "string" || !HHMM.test(from) || !HHMM.test(to))) errors[`${prefix}.hours`] = "Use HH:MM."
+    else if (from && to && from === to) errors[`${prefix}.hours`] = "From and to are the same time."
+  }
+}
+
+export function validateDocument(doc: HomeLayoutDocument, knownTags?: string[]): LayoutErrors {
+  const errors: LayoutErrors = {}
+  if (doc.sections.length > LIMITS.sections) {
+    errors["sections"] = `At most ${LIMITS.sections} shelves; remove ${doc.sections.length - LIMITS.sections}.`
+  }
+  const customs = doc.sections.filter((s) => s.type === "custom")
+  if (customs.length > MAX_CUSTOM_SHELVES) {
+    errors["sections"] = [errors["sections"], `At most ${MAX_CUSTOM_SHELVES} custom shelves.`].filter(Boolean).join(" ")
+  }
+  const seen = new Set<string>()
+  for (const s of doc.sections) {
+    const p = `sections.${s.id}`
+    if (seen.has(s.id)) errors[p] = "This shelf is listed twice."
+    seen.add(s.id)
+    const title = typeof s.title === "string" ? s.title.trim() : ""
+    if (title.length > LIMITS.title) errors[`${p}.title`] = `Keep it under ${LIMITS.title} characters.`
+    if (s.type === "custom" && !title) errors[`${p}.title`] = "Give the shelf a title."
+    if (s.type === "custom" && s.source !== "picked" && s.source !== "rule") errors[`${p}.source`] = "Pick cafés or use a rule."
+    const ids: unknown = s.type === "custom" ? (s.source === "picked" ? s.cafe_ids ?? [] : []) : s.cafe_ids ?? []
+    if (!Array.isArray(ids) || ids.some((id) => typeof id !== "string" || !UUID.test(id))) {
+      errors[`${p}.cafe_ids`] = "One of the picked cafés isn’t a valid café."
+    } else if (ids.length > LIMITS.cafeIdsPerSection) {
+      errors[`${p}.cafe_ids`] = `At most ${LIMITS.cafeIdsPerSection} cafés.`
+    }
+    if (s.type === "custom" && s.source === "rule") {
+      const r = s.rule
+      if (r && !RULE_SORTS.some((o) => o.value === r.sort)) errors[`${p}.rule.sort`] = "Choose a sort."
+      if (!r?.tag) errors[`${p}.rule.tag`] = "Choose a tag."
+      else if (knownTags && !knownTags.includes(r.tag)) errors[`${p}.rule.tag`] = "This tag no longer exists."
+      if (!r || !Number.isInteger(r.limit) || r.limit < LIMITS.ruleLimitMin || r.limit > LIMITS.ruleLimitMax) {
+        errors[`${p}.rule.limit`] = `Between ${LIMITS.ruleLimitMin} and ${LIMITS.ruleLimitMax}.`
+      }
+    }
+    validateSchedule(`${p}.schedule`, s.schedule, errors)
+  }
+  const b = doc.banner
+  if (b && b.enabled) {
+    const bannerTitle = typeof b.title === "string" ? b.title.trim() : ""
+    if (!bannerTitle) errors["banner.title"] = "A banner needs a title."
+    if (bannerTitle.length > LIMITS.bannerTitle) errors["banner.title"] = `Keep it under ${LIMITS.bannerTitle} characters.`
+    if ((b.body ?? "").trim().length > LIMITS.bannerBody) errors["banner.body"] = `Keep it under ${LIMITS.bannerBody} characters.`
+    if ((b.cta_label ?? "").trim().length > LIMITS.ctaLabel) errors["banner.cta_label"] = `Keep it under ${LIMITS.ctaLabel} characters.`
+    const linkError = validateLink(b.link)
+    if (linkError) errors["banner.link"] = linkError
+    if ((b.cta_label ?? "").trim() && !(b.link ?? "").trim()) errors["banner.link"] = "A button needs a link."
+    validateSchedule("banner.schedule", b.schedule, errors)
+  }
+  return errors
+}
+
+// ---------------------------------------------------------------------------
+// Schedules, evaluated in Asia/Manila (UTC+8, no daylight saving).
+
+const MANILA_OFFSET_MS = 8 * 60 * 60 * 1000
+
+/** Wall-clock parts of `date` in Manila. */
+export function manilaParts(date: Date) {
+  const m = new Date(date.getTime() + MANILA_OFFSET_MS)
+  const isoDay = ((m.getUTCDay() + 6) % 7) + 1 // 1 = Monday
+  return {
+    year: m.getUTCFullYear(),
+    month: m.getUTCMonth() + 1,
+    day: m.getUTCDate(),
+    isoDay,
+    minutes: m.getUTCHours() * 60 + m.getUTCMinutes(),
+  }
+}
+
+/** "2026-10-20T08:00" (Manila wall clock, as a datetime-local input holds it)
+ *  → "2026-10-20T08:00:00+08:00". With `endOfMinute` (an end time) the last
+ *  millisecond of that minute, "2026-10-20T08:00:59.999+08:00", so "ends 23:59"
+ *  shows through 23:59 (HOME_LAYOUT.md › Schedule evaluation). */
+export function manilaLocalToIso(local: string, endOfMinute = false): string | null {
+  if (!local) return null
+  const m = /^(\d{4}-\d{2}-\d{2})T(\d{2}:\d{2})/.exec(local)
+  return m ? `${m[1]}T${m[2]}:${endOfMinute ? "59.999" : "00"}+08:00` : null
+}
+
+/** The reverse: an ISO timestamp as a Manila datetime-local value. */
+export function isoToManilaLocal(iso: string | null | undefined): string {
+  if (!iso) return ""
+  const t = Date.parse(iso)
+  if (Number.isNaN(t)) return ""
+  return new Date(t + MANILA_OFFSET_MS).toISOString().slice(0, 16)
+}
+
+function toMinutes(hhmm: string) {
+  const [h, m] = hhmm.split(":").map(Number)
+  return h * 60 + m
+}
+
+/** Whether a schedule lets its section or banner show at `at`. */
+export function isScheduleActive(s: Schedule | null | undefined, at: Date): boolean {
+  if (!s) return true
+  const t = at.getTime()
+  if (s.starts_at && t < Date.parse(s.starts_at)) return false
+  if (s.ends_at && t > Date.parse(s.ends_at)) return false
+  const p = manilaParts(at)
+  // As the app (nook-mobile HomeSchedule.isActiveAt): a window that wraps past
+  // midnight belongs to the day it started, so Fri 22:00–02:00 is still on at
+  // 01:00 Saturday and is not on at 01:00 Friday.
+  let day = p.isoDay
+  if (s.hours && s.hours.from && s.hours.to) {
+    const from = toMinutes(s.hours.from)
+    const to = toMinutes(s.hours.to)
+    if (from < to) {
+      if (p.minutes < from || p.minutes >= to) return false
+    } else if (from > to) {
+      const late = p.minutes >= from
+      const early = p.minutes < to
+      if (!late && !early) return false
+      if (early) day = day === 1 ? 7 : day - 1
+    }
+  }
+  if (s.days && s.days.length > 0 && !s.days.includes(day)) return false
+  return true
+}
+
+const DAY_SHORT = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
+
+function formatManila(iso: string) {
+  if (Number.isNaN(Date.parse(iso))) return iso
+  return new Intl.DateTimeFormat("en-PH", {
+    timeZone: "Asia/Manila",
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  }).format(new Date(iso))
+}
+
+function formatHour(hhmm: string) {
+  const [h, m] = hhmm.split(":").map(Number)
+  const suffix = h < 12 ? "am" : "pm"
+  const h12 = h % 12 === 0 ? 12 : h % 12
+  return m === 0 ? `${h12}${suffix}` : `${h12}:${String(m).padStart(2, "0")}${suffix}`
+}
+
+function describeDays(days: number[]) {
+  const sorted = [...days].sort()
+  if (sorted.join() === "6,7") return "Weekends"
+  if (sorted.join() === "1,2,3,4,5") return "Weekdays"
+  return sorted.map((d) => DAY_SHORT[d - 1]).join(", ")
+}
+
+/** One line in words: "Sat, Sun · 7am–12pm · until Dec 31, 11:59 pm". Null
+ *  when there is no schedule. */
+export function describeSchedule(s: Schedule | null | undefined): string | null {
+  if (!s) return null
+  const parts: string[] = []
+  if (s.days && s.days.length > 0 && s.days.length < 7) parts.push(describeDays(s.days))
+  if (s.hours && s.hours.from && s.hours.to) parts.push(`${formatHour(s.hours.from)}–${formatHour(s.hours.to)}`)
+  if (s.starts_at && s.ends_at) parts.push(`${formatManila(s.starts_at)} to ${formatManila(s.ends_at)}`)
+  else if (s.starts_at) parts.push(`from ${formatManila(s.starts_at)}`)
+  else if (s.ends_at) parts.push(`until ${formatManila(s.ends_at)}`)
+  return parts.length > 0 ? parts.join(" · ") : null
+}

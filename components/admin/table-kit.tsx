@@ -480,7 +480,7 @@ export function TableEmpty({
 
 export type Tone = "success" | "warning" | "danger" | "neutral" | "info"
 
-const TONES: Record<Tone, string> = {
+export const TONES: Record<Tone, string> = {
   success: "bg-emerald-50 text-emerald-700",
   warning: "bg-[#FFF4DC] text-[#8A5A00]",
   danger: "bg-red-50 text-red-700",

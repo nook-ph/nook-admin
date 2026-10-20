@@ -54,10 +54,12 @@ export function AdminShell({
       />
       <SidebarInset>
         <AdminHeader />
-        {/* min-w-0 + overflow-x-hidden: without these, any over-wide
+        {/* min-w-0 + overflow-x-clip: without these, any over-wide
             descendant widens the document and scrolls the whole page
-            sideways instead of being contained. */}
-        <main className="flex min-w-0 flex-1 flex-col gap-4 overflow-x-hidden">{children}</main>
+            sideways instead of being contained. clip, not hidden: hidden
+            makes <main> a scroll container, which stops the lg:sticky
+            rails on form and detail pages from sticking. */}
+        <main className="flex min-w-0 flex-1 flex-col gap-4 overflow-x-clip">{children}</main>
       </SidebarInset>
 
       <CommandDialog
